@@ -20,7 +20,7 @@
 #endif 
 
 
-#define COMMON_ARENA_SIZE 1024
+#define DEFAULT_ARENA_SIZE (4 * 1024)
 
 #include <stdlib.h>
 
@@ -29,7 +29,6 @@ struct Arena;
 struct Arena *arena_new(size_t size);
 void arena_destroy(struct Arena *arena);
 size_t arena_remaining_size(struct Arena *arena);
-
-void test_arena_func(void);
+void *arena_alloc(struct Arena *arena, size_t alignment, size_t size);
 
 #endif
