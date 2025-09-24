@@ -12,49 +12,49 @@
  *                            strictly for pointer arithmetic and comparison)
  */ 
 
-struct Arena {
+struct arena {
     char *start;
     char *current;
     char *end;
 };
 
-struct Arena *arena_new(size_t size)
+struct arena *arena_new(size_t size)
 {
-    struct Arena *arena = malloc(sizeof(struct Arena));
+    struct arena *a = malloc(sizeof(struct arena));
 
-    arena->start = malloc(size);
-    arena->current = arena->start;
-    arena->end = arena->start + size;
+    a->start = malloc(size);
+    a->current = a->start;
+    a->end = a->start + size;
 
-    ASAN_POISON_MEMORY_REGION(arena->current, arena_remaining_size(arena));
+    ASAN_POISON_MEMORY_REGION(a->current, arena_remaining_size(a));
 
-    return arena;
+    return a;
 }
 
-void arena_destroy(struct Arena *arena)
+void arena_destroy(struct arena *a)
 {
-    free(arena->start);
-    free(arena);
+    free(a->start);
+    free(a);
 }
 
-size_t arena_remaining_size(struct Arena *arena)
+size_t arena_remaining_size(struct arena *a)
 {
-    return arena->end - arena->current;
+    return a->end - a->current;
 }
 
-// ASAN wants an alignment of 8 to work. Why? No idea
-void *arena_alloc(struct Arena *arena, size_t alignment, size_t size)
+/* ASAN wants an alignment of 8 to work. Why? No idea */
+void *arena_alloc(struct arena *a, size_t alignment, size_t size)
 {
-    // Alignment must always be a power of 2
+    /* Alignment must always be a power of 2 */
     assert((alignment & (alignment - 1)) == 0);
 
-    size_t pad = -(uintptr_t)arena->current & (alignment - 1);
+    size_t pad = -(uintptr_t)a->current & (alignment - 1);
     size_t total = pad + size;
-    if (arena_remaining_size(arena) < total)
+    if (arena_remaining_size(a) < total)
         return NULL;
 
-    void *block = pad + arena->current;
-    arena->current += total;
+    void *block = pad + a->current;
+    a->current += total;
 
     ASAN_UNPOISON_MEMORY_REGION(block, total);
         

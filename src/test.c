@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 #include "arena.h"
-#include "min_json.h"
+#include "minjson.h"
 
 int main(void)
 {

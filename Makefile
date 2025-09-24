@@ -17,7 +17,7 @@ BUILD_DIR = build
 DEBUG_DIR = $(BUILD_DIR)/debug
 RELEASE_DIR = $(BUILD_DIR)/release
 
-SRCS_LIB = src/min_json.c src/arena.c
+SRCS_LIB = src/minjson.c src/arena.c
 OBJS_DEBUG = $(patsubst src/%.c, $(DEBUG_DIR)/%.o, $(SRCS_LIB))
 OBJS_RELEASE = $(patsubst src/%.c, $(RELEASE_DIR)/%.o, $(SRCS_LIB))
 
@@ -26,7 +26,7 @@ OBJ_TEST = $(patsubst src/%.c, $(BUILD_DIR)/%.o, $(SRC_TEST))
 
 LIB_DEBUG = $(DEBUG_DIR)/libminjson.a
 LIB_RELEASE = $(RELEASE_DIR)/libminjson.a
-TARGET_TEST = $(BUILD_DIR)/min_json_test
+TARGET_TEST = $(BUILD_DIR)/minjson_test
 
 all: lib-debug lib-release test
 
@@ -75,7 +75,7 @@ help:
 	@echo "    all              - Build both lib config and test"
 	@echo "    lib-debug        - Build lib with debug config"
 	@echo "    lib-release      - Build lib with release config"
-	@echo "    test             - Build test executable, strictly using lib debug"
+	@echo "    test             - Build test executable. Only testing lib debug"
 	@echo "    compile_commands - Generate compile_commands.json"
 	@echo "    clean            - Remove build directory"
 	@echo "    help             - Print this message"
