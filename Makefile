@@ -41,9 +41,6 @@ $(LIB_DEBUG): $(OBJS_DEBUG)
 build/debug/%.o: src/%.c | $(DEBUG_DIR)
 	$(CC) $(DEBUG_FLAGS) -c $< -o $@
 
-$(DEBUG_DIR)/:
-	mkdir -p $(DEBUG_DIR)/
-
 # libminjson release
 $(LIB_RELEASE): $(OBJS_RELEASE)
 	$(AR) rcs $(LIB_RELEASE) $(OBJS_RELEASE)

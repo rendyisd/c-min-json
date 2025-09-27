@@ -24,11 +24,12 @@
 
 #include <stdlib.h>
 
-struct arena;
+struct arena_allocator;
 
-struct arena *arena_new(size_t size);
-void arena_destroy(struct arena *a);
-size_t arena_remaining_size(struct arena *a);
-void *arena_alloc(struct arena *a, size_t alignment, size_t size);
+struct arena_allocator *arena_allocator_new(size_t size);
+void arena_allocator_destroy(struct arena_allocator *aa);
+void *arena_allocator_alloc(struct arena_allocator *aa,
+                            size_t alignment,
+                            size_t size);
 
 #endif

@@ -18,6 +18,11 @@ enum minjson_type {
 };
 
 struct minjson {
+    struct arena_allocator *arena;
+    struct minjson_value *root;
+};
+
+struct minjson_value {
     enum minjson_type type; /* Bool stored here with value NULL */
     union {
         struct minjson_object *object;
@@ -27,16 +32,17 @@ struct minjson {
     } value;
 };
 
+
 /* Any number of key value pair */
 struct minjson_object { /* This itself is value of type object */
     char **keys;
-    struct minjson **values;
+    struct minjson_value **values;
     size_t len, capacity;
 };
 
 /* Any number of value(any type) */
 struct minjson_array { /* This itself is value of type array */
-    struct minjson **items;
+    struct minjson_value **items;
     size_t len, capacity;
 };
 
@@ -63,7 +69,60 @@ struct minjson_token {
 struct minjson_lexer {
     struct minjson_token **tokens;
     size_t len;
-    size_t c_line, c_column;
+    size_t pos_line, pos_column;
 };
 
-static void lexer_skip_whitespaces(struct minjson_lexer *lexer, char *c)
+static void lexer_skip_whitespaces(struct minjson_lexer *lexer, char **ptr)
+{
+    char *c = *ptr;
+
+    /* - space
+     * - horizontal tab
+     * - line feed
+     * - carriage return
+     * - CRLF
+     * Will be treated as 1 character
+     */
+    while (*c == ' ' || *c == '\t' || *c == '\n' || *c == '\r') {
+
+        if (*c == '\r' && *(c+1) == '\n')
+            ++c;
+        
+        if (*c == '\n') {
+            lexer->pos_column = 1;
+            lexer->pos_line += 1;
+        } else {
+            lexer->pos_column += 1;
+        }
+
+        ++c;
+    }
+
+    *ptr = c;
+}
+
+int lexer_tokenize(struct minjson_lexer *lexer, char *raw_json)
+{
+    while (*raw_json != '\0') {
+        switch (*raw_json) {
+            case '{':
+                /* Parse object */
+                break;
+            case '"':
+                /* Parse string */
+                break;
+            default:
+                raw_json += 1;
+                break;
+        }
+    }
+
+    return 0;
+}
+
+int minjson_deserialize(char *raw_json)
+{
+    /* Lexer and arena here 
+     */
+    return 0;
+}
