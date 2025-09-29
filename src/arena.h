@@ -21,6 +21,7 @@
 
 
 #define DEFAULT_ARENA_SIZE (4 * 1024)
+#define DEFAULT_ALIGNMENT 8
 
 #include <stdlib.h>
 

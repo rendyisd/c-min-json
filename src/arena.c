@@ -22,7 +22,6 @@ struct arena {
 struct arena_allocator {
     struct arena *head;   
     struct arena *tail;
-    size_t len;
 };
 
 static size_t arena_remaining_size(struct arena *a)
@@ -65,15 +64,12 @@ static struct arena *arena_allocator_grow(struct arena_allocator* aa,
     if (!a)
         return NULL;
 
-    if (!aa->head) {
-        aa->head = a;
-        aa->tail = a;
-        aa->len = 1;
-    } else {
+    if (aa->tail)
         aa->tail->next = a;
-        aa->tail = a;
-        aa->len += 1;
-    }
+    else
+        aa->head = a;
+
+    aa->tail = a;
 
     return a;
 }
@@ -92,7 +88,6 @@ struct arena_allocator *arena_allocator_new(size_t size)
 
     aa->head = a;
     aa->tail = a;
-    aa->len = 1;
 
     return aa;
 }
