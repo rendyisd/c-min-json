@@ -1,3 +1,4 @@
+#include <string.h>
 #include <stdio.h>
 #include "minjson.h"
 
@@ -142,6 +143,33 @@ static int lexer_add_string(struct minjson_lexer *lexer)
     return 0;
 }
 
+static int lexer_match_identifier(struct minjson_lexer *lexer,
+                                  enum token_type type,
+                                  const char *s,
+                                  size_t len)
+{
+    ASSERT(strlen(s) == len);
+    /* No way to sanity check type and matched const char *s
+     * Just dont use this for stupid thing I guess.*/
+
+    if (strncmp(lexer->current, s, len) != 0) {
+        /* TODO: reports unidentified identifier */
+        return -1;
+    }
+    /* This is for catching lexer error early on, for cases like
+     * truenull, truefalse, and the like*/
+    char next = lexer->current[len];
+    if (!(next == '\0' || next == ' ' || next == '\t' || next == '\n' ||
+          next == '\r' || next == ',' || next == '}'  || next == ']')) {
+        /* TODO: reports unidentified identifier */
+        return -1;
+    }
+    lexer_add_token(type, lexer, len);
+    lexer_advance(lexer, len - 1);
+
+    return 0;
+}
+
 int lexer_tokenize(struct minjson_lexer *lexer)
 {
     while (*lexer->current != '\0') {
@@ -166,6 +194,18 @@ int lexer_tokenize(struct minjson_lexer *lexer)
                 break;
             case '"':
                 if (lexer_add_string(lexer) == -1)
+                    return -1;
+                break;
+            case 't':
+                if (lexer_match_identifier(lexer, TK_BOOL, "true", 4) == -1)
+                    return -1;
+                break;
+            case 'f':
+                if (lexer_match_identifier(lexer, TK_BOOL, "false", 5) == -1)
+                    return -1;
+                break;
+            case 'n':
+                if (lexer_match_identifier(lexer, TK_NULL, "null", 4) == -1)
                     return -1;
                 break;
             case ' ':

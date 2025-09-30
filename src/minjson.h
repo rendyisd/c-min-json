@@ -1,6 +1,17 @@
 #ifndef MINJSON_H
 #define MINJSON_H
 
+#if DEBUG
+
+#include <assert.h>
+#define ASSERT(expr) assert(expr)
+
+#else
+
+#define ASSERT(expr) ((void) 0)
+
+#endif
+
 #include "arena.h"
 
 struct minjson;

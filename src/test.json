@@ -1,20 +1,24 @@
 {
     "name": "Alice",
-    "city": "Wonderland",
-    "favorites": {
-        "color": "blue",
-        "food": "cake",
-        "hobby": "reading"
+    "active": true,
+    "preferences": {
+        "theme": "light",
+        "notifications": false,
+        "language": null
     },
-    "friends": [
+    "tags": ["developer", "designer", "tester"],
+    "projects": [
         {
-            "name": "Bob",
-            "city": "Builderland"
+            "title": "Project One",
+            "status": "completed",
+            "archived": false
         },
         {
-            "name": "Charlie",
-            "city": "Chocolate Factory"
+            "title": "Project Two",
+            "status": "in-progress",
+            "archived": true
         }
     ],
-    "emptyString": ""
+    "notes": ""
 }
+

@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -111,11 +110,11 @@ void arena_allocator_destroy(struct arena_allocator *aa)
 void *arena_allocator_alloc(struct arena_allocator *aa, size_t alignment, size_t size)
 {
     /* Alignment must always be a power of 2 */
-    assert((alignment & (alignment - 1)) == 0);
+    ASSERT((alignment & (alignment - 1)) == 0);
 
-    size_t pad;
-    size_t total;
-    size_t grow_size;
+    size_t pad = 0;
+    size_t total = 0;
+    size_t grow_size = 0;
     struct arena *available_ar = aa->head;
     while (available_ar) { 
         pad = -(uintptr_t)available_ar->current & (alignment - 1);

@@ -19,6 +19,17 @@
 
 #endif 
 
+#if DEBUG
+
+#include <assert.h>
+#define ASSERT(expr) assert(expr)
+
+#else
+
+#define ASSERT(expr) ((void) 0)
+
+#endif
+
 
 #define DEFAULT_ARENA_SIZE (4 * 1024)
 #define DEFAULT_ALIGNMENT 8
