@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include "minjson.h"
 
@@ -159,15 +160,8 @@ static int lexer_add_number(struct minjson_lexer *lexer)
     const char *curr = lexer->current;
     size_t len = 0;
 
-    if (*curr == '-' && is_digit(curr[1])) {
-        ++curr;
-        ++len;
-    }
-
-    /* - if first is 0 next must be decimal point (dp) else arbitrary number
-     * - after dp, any number atleast 1 then no more dp
-     * - e/E must always be at the end followed by
-     *   an optional -/+, any number (first cannot be 0) atleast 1 */
+    /* either use strtod() to validate (no idea how to save double
+     * as this is lexer) OR handroll your own state machine or something */
 
     return 0;
 
