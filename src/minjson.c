@@ -50,7 +50,8 @@ enum token_type {
     TK_STRING,
     TK_NUMBER,
     TK_NULL,
-    TK_BOOL,
+    TK_TRUE,
+    TK_FALSE,
     TK_OPEN_CB,
     TK_CLOSE_CB,
     TK_OPEN_SB,
@@ -223,11 +224,11 @@ int lexer_tokenize(struct minjson_lexer *lexer)
                     return -1;
                 break;
             case 't':
-                if (lexer_match_identifier(lexer, TK_BOOL, "true", 4) == -1)
+                if (lexer_match_identifier(lexer, TK_TRUE, "true", 4) == -1)
                     return -1;
                 break;
             case 'f':
-                if (lexer_match_identifier(lexer, TK_BOOL, "false", 5) == -1)
+                if (lexer_match_identifier(lexer, TK_FALSE, "false", 5) == -1)
                     return -1;
                 break;
             case 'n':
@@ -263,7 +264,8 @@ void lexer_print_tokens(struct minjson_lexer *lexer)
             case TK_STRING: type_name = "TK_STRING"; break;
             case TK_NUMBER: type_name = "TK_NUMBER"; break;
             case TK_NULL: type_name = "TK_NULL"; break;
-            case TK_BOOL: type_name = "TK_BOOL"; break;
+            case TK_TRUE: type_name = "TK_TRUE"; break;
+            case TK_FALSE: type_name = "TK_FALSE"; break;
             case TK_OPEN_CB: type_name = "TK_OPEN_CB"; break;
             case TK_CLOSE_CB: type_name = "TK_CLOSE_CB"; break;
             case TK_OPEN_SB: type_name = "TK_OPEN_SB"; break;

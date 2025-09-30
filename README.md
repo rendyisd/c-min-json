@@ -1,5 +1,4 @@
-# minimal-c-json
-A minimalistic C JSON parser
+# Minimalistic JSON Parser for C
 
 ## Non-existent feature
 - Scientific notation on number literal \[In progress\]
