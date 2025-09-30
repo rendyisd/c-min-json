@@ -1,0 +1,20 @@
+{
+    "name": "Alice",
+    "city": "Wonderland",
+    "favorites": {
+        "color": "blue",
+        "food": "cake",
+        "hobby": "reading"
+    },
+    "friends": [
+        {
+            "name": "Bob",
+            "city": "Builderland"
+        },
+        {
+            "name": "Charlie",
+            "city": "Chocolate Factory"
+        }
+    ],
+    "emptyString": ""
+}

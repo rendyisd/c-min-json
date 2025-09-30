@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "minjson.h"
 
 /* Deserialization:
@@ -72,30 +73,30 @@ struct minjson_lexer {
     size_t pos_line, pos_column;
 };
 
+static void lexer_advance(struct minjson_lexer *lexer, size_t step)
+{
+    lexer->current += step;
+    lexer->pos_column += step;
+}
+
 static void lexer_skip_whitespaces(struct minjson_lexer *lexer)
 {
     const char *c = lexer->current;
 
-    /* CRLF is treated as a single line feed character */
-    while (*c == ' ' || *c == '\t' || *c == '\n' || *c == '\r') {
-
-        if (*c == '\r' && *(c+1) == '\n')
-            ++c;
-        
+    while (*c == ' ' || *c == '\t' || *c == '\n' || *c == '\r') { 
         if (*c == '\n') {
             lexer->pos_column = 1;
             lexer->pos_line += 1;
         } else {
             lexer->pos_column += 1;
         }
-
         ++c;
     }
 
     lexer->current = c;
 }
 
-void lexer_add_token(enum token_type type,
+static void lexer_add_token(enum token_type type,
                      struct minjson_lexer *lexer,
                      size_t len)
 {
@@ -117,6 +118,28 @@ void lexer_add_token(enum token_type type,
         lexer->tk_head = token;
 
     lexer->tk_tail = token;
+}
+
+static int lexer_add_string(struct minjson_lexer *lexer)
+{
+    lexer_advance(lexer, 1); /* One past the opening " */
+
+    const char *curr = lexer->current;
+    size_t len = 0;
+    while (*curr != '"') {
+        if (*curr == '\n' || *curr == '\0') {
+            /* TODO: Report unterminated string */
+            return -1;
+        }
+
+        ++curr;
+        ++len;
+    }
+
+    lexer_add_token(TK_STRING, lexer, len);
+    lexer_advance(lexer, len); /* One past the closing " */
+
+    return 0;
 }
 
 int lexer_tokenize(struct minjson_lexer *lexer)
@@ -142,22 +165,61 @@ int lexer_tokenize(struct minjson_lexer *lexer)
                 lexer_add_token(TK_DELIMITER, lexer, 1);
                 break;
             case '"':
-                /* Parse string */
+                if (lexer_add_string(lexer) == -1)
+                    return -1;
+                break;
             case ' ':
             case '\t':
             case '\n':
             case '\r':
                 lexer_skip_whitespaces(lexer);
-                continue; /* Skip ++ below. Already done above */
+                /* Skips advance logic below,
+                 * lexer already points to non-whitespace after function above
+                 */
+                continue;
             default:
                 /* TODO: reports unexpected token */
                 return -1;
         }
-        ++lexer->current;
-        ++lexer->pos_column;
+        lexer_advance(lexer, 1);
     }
 
     return 0;
+}
+
+void lexer_print_tokens(struct minjson_lexer *lexer)
+{
+// enum token_type {
+//     TK_STRING,
+//     TK_NUMBER,
+//     TK_NULL,
+//     TK_BOOL,
+//     TK_OPEN_CB,
+//     TK_CLOSE_CB,
+//     TK_OPEN_SB,
+//     TK_CLOSE_SB,
+//     TK_COLON,
+//     TK_DELIMITER,
+// };
+    char *type_name = "";
+    struct minjson_token *token = lexer->tk_head;
+
+    while (token) {
+        switch (token->type) {
+            case TK_STRING: type_name = "TK_STRING"; break;
+            case TK_NUMBER: type_name = "TK_NUMBER"; break;
+            case TK_NULL: type_name = "TK_NULL"; break;
+            case TK_BOOL: type_name = "TK_BOOL"; break;
+            case TK_OPEN_CB: type_name = "TK_OPEN_CB"; break;
+            case TK_CLOSE_CB: type_name = "TK_CLOSE_CB"; break;
+            case TK_OPEN_SB: type_name = "TK_OPEN_SB"; break;
+            case TK_CLOSE_SB: type_name = "TK_CLOSE_SB"; break;
+            case TK_COLON: type_name = "TK_COLON"; break;
+            case TK_DELIMITER: type_name = "TK_DELIMITER"; break;
+        }
+        printf("(%s) %.*s\n", type_name, (int)token->len, token->lexeme);
+        token = token->next;
+    }
 }
 
 struct minjson_lexer *lexer_new(struct arena_allocator *aa,
