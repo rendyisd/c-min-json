@@ -161,7 +161,7 @@ static int lexer_add_number(struct minjson_lexer *lexer)
     size_t len = 0;
 
     /* either use strtod() to validate (no idea how to save double
-     * as this is lexer) OR handroll your own state machine or something */
+     * as this is a lexer) OR handroll your own state machine or something */
 
     return 0;
 
@@ -177,7 +177,7 @@ static int lexer_match_identifier(struct minjson_lexer *lexer,
 {
     ASSERT(strlen(s) == len);
     /* No way to sanity check type and matched const char *s
-     * Just dont use this for stupid thing I guess.*/
+     * Just dont use this for stupid thing, I guess.*/
 
     if (strncmp(lexer->current, s, len) != 0) {
         /* TODO: reports unidentified identifier */
