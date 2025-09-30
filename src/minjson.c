@@ -74,6 +74,17 @@ struct minjson_lexer {
     size_t pos_line, pos_column;
 };
 
+static int is_digit(const char c)
+{
+    return c >= '0' && c <= '9';
+}
+
+static int is_valid_literal_terminator(const char c)
+{
+    return c == '\0' || c == ' ' || c == '\t' || c == '\n' ||
+           c == '\r' || c == ',' || c == '}'  || c == ']';
+}
+
 static void lexer_advance(struct minjson_lexer *lexer, size_t step)
 {
     lexer->current += step;
@@ -143,6 +154,28 @@ static int lexer_add_string(struct minjson_lexer *lexer)
     return 0;
 }
 
+static int lexer_add_number(struct minjson_lexer *lexer)
+{
+    const char *curr = lexer->current;
+    size_t len = 0;
+
+    if (*curr == '-' && is_digit(curr[1])) {
+        ++curr;
+        ++len;
+    }
+
+    /* - if first is 0 next must be decimal point (dp) else arbitrary number
+     * - after dp, any number atleast 1 then no more dp
+     * - e/E must always be at the end followed by
+     *   an optional -/+, any number (first cannot be 0) atleast 1 */
+
+    return 0;
+
+fail:
+    /* TODO: report invalid number sequence */
+    return -1;
+}
+
 static int lexer_match_identifier(struct minjson_lexer *lexer,
                                   enum token_type type,
                                   const char *s,
@@ -158,9 +191,8 @@ static int lexer_match_identifier(struct minjson_lexer *lexer,
     }
     /* This is for catching lexer error early on, for cases like
      * truenull, truefalse, and the like*/
-    char next = lexer->current[len];
-    if (!(next == '\0' || next == ' ' || next == '\t' || next == '\n' ||
-          next == '\r' || next == ',' || next == '}'  || next == ']')) {
+    const char next = lexer->current[len];
+    if (!is_valid_literal_terminator(next)) {
         /* TODO: reports unidentified identifier */
         return -1;
     }
@@ -208,14 +240,14 @@ int lexer_tokenize(struct minjson_lexer *lexer)
                 if (lexer_match_identifier(lexer, TK_NULL, "null", 4) == -1)
                     return -1;
                 break;
-            case ' ':
-            case '\t':
-            case '\n':
-            case '\r':
+            case '0': case '1': case '2': case '3': case '4': case '5':
+            case '6': case '7': case '8': case '9': case '-':
+                lexer_add_number(lexer);
+                break;
+            case ' ': case '\t': case '\n': case '\r':
                 lexer_skip_whitespaces(lexer);
                 /* Skips advance logic below,
-                 * lexer already points to non-whitespace after function above
-                 */
+                 * lexer now points to non-whitespace after function above */
                 continue;
             default:
                 /* TODO: reports unexpected token */

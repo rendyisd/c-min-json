@@ -9,12 +9,12 @@
     "tags": ["developer", "designer", "tester"],
     "projects": [
         {
-            "title": "Project One",
+            "title": "Project One\n",
             "status": "completed",
             "archived": false
         },
         {
-            "title": "Project Two",
+            "title": "Project Two ©",
             "status": "in-progress",
             "archived": true
         }
