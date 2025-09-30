@@ -204,6 +204,7 @@ void lexer_print_tokens(struct minjson_lexer *lexer)
             case TK_CLOSE_SB: type_name = "TK_CLOSE_SB"; break;
             case TK_COLON: type_name = "TK_COLON"; break;
             case TK_DELIMITER: type_name = "TK_DELIMITER"; break;
+            default: type_name = "ERROR_UNKNOWN_TOKEN"; break;
         }
         printf("(%s) %.*s\n", type_name, (int)token->len, token->lexeme);
         token = token->next;
