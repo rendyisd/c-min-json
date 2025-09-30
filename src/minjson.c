@@ -128,7 +128,7 @@ static int lexer_add_string(struct minjson_lexer *lexer)
     size_t len = 0;
     while (*curr != '"') {
         if (*curr == '\n' || *curr == '\0') {
-            /* TODO: Report unterminated string */
+            /* TODO: reports unterminated string */
             return -1;
         }
 
@@ -137,7 +137,7 @@ static int lexer_add_string(struct minjson_lexer *lexer)
     }
 
     lexer_add_token(TK_STRING, lexer, len);
-    lexer_advance(lexer, len); /* One past the closing " */
+    lexer_advance(lexer, len); /* On " closing */
 
     return 0;
 }
@@ -189,18 +189,6 @@ int lexer_tokenize(struct minjson_lexer *lexer)
 
 void lexer_print_tokens(struct minjson_lexer *lexer)
 {
-// enum token_type {
-//     TK_STRING,
-//     TK_NUMBER,
-//     TK_NULL,
-//     TK_BOOL,
-//     TK_OPEN_CB,
-//     TK_CLOSE_CB,
-//     TK_OPEN_SB,
-//     TK_CLOSE_SB,
-//     TK_COLON,
-//     TK_DELIMITER,
-// };
     char *type_name = "";
     struct minjson_token *token = lexer->tk_head;
 
