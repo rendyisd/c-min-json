@@ -207,48 +207,48 @@ static int lexer_add_number(struct minjson_lexer *lexer)
                 if (*curr == '-') state = Q1_OPT_MINUS;
                 else if (*curr == '0') state = Q2_INITIAL_ZERO;
                 else if (is_onenine(*curr)) state = Q3_DIGIT;
-                else goto fail; 
+                else return -1; 
                 break;
             case Q1_OPT_MINUS:
                 if (*curr == '0') state = Q2_INITIAL_ZERO;
                 else if (is_onenine(*curr)) state = Q3_DIGIT;
-                else goto fail;
+                else return -1;
                 break;
             case Q2_INITIAL_ZERO:
                 if (*curr == '.') state = Q4_FRAC;
                 else if (*curr == 'e' || *curr == 'E') state = Q6_EXP;
-                else goto fail;
+                else return -1;
                 break;
             case Q3_DIGIT:
                 if (is_digit(*curr)) state = Q3_DIGIT;
                 else if (*curr == '.') state = Q4_FRAC;
                 else if (*curr == 'e' || *curr == 'E') state = Q6_EXP;
-                else goto fail;
+                else return -1;
                 break;
             case Q4_FRAC:
                 if (is_digit(*curr)) state = Q5_FRAC_DIGIT;
-                else goto fail;
+                else return -1;
                 break;
             case Q5_FRAC_DIGIT:
                 if (is_digit(*curr)) state = Q5_FRAC_DIGIT;
                 else if (*curr == 'e' || *curr == 'E') state = Q6_EXP;
-                else goto fail;
+                else return -1;
                 break;
             case Q6_EXP:
                 if (*curr == '+' || *curr == '-') state = Q7_OPT_MINUS_PLUS;
                 else if (is_digit(*curr)) state = Q8_EXP_DIGIT;
-                else goto fail;
+                else return -1;
                 break;
             case Q7_OPT_MINUS_PLUS:
                 if (is_digit(*curr)) state = Q8_EXP_DIGIT;
-                else goto fail;
+                else return -1;
                 break;
             case Q8_EXP_DIGIT:
                 if (is_digit(*curr)) state = Q8_EXP_DIGIT;
-                else goto fail;
+                else return -1;
                 break;
             default:
-                goto fail;
+                return -1;
                 break;
         }
         ++curr;
@@ -257,15 +257,12 @@ static int lexer_add_number(struct minjson_lexer *lexer)
     /* Accept states */
     if (!(state == Q2_INITIAL_ZERO || state == Q3_DIGIT ||
           state == Q5_FRAC_DIGIT || state == Q8_EXP_DIGIT))
-        goto fail;
+        return -1;
 
     lexer_add_token(TK_NUMBER, lexer, len);
     lexer_advance(lexer, len);
 
     return 0;
-
-fail:
-    return -1;
 }
 
 /* I'm not sure what to call these (true, false, null)
