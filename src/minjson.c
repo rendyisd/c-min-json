@@ -81,6 +81,11 @@ static int is_digit(const char c)
     return c >= '0' && c <= '9';
 }
 
+static int is_onenine(const char c)
+{
+    return c >= '1' && c <= '9';
+}
+
 static int is_valid_literal_terminator(const char c)
 {
     return c == '\0' || c == ' ' || c == '\t' || c == '\n' ||
@@ -141,10 +146,8 @@ static int lexer_add_string(struct minjson_lexer *lexer)
     const char *curr = lexer->current;
     size_t len = 0;
     while (*curr != '"') {
-        if (*curr == '\n' || *curr == '\0') {
-            /* TODO: reports unterminated string */
-            return -1;
-        }
+        if (*curr == '\n' || *curr == '\0')
+            goto fail;
 
         ++curr;
         ++len;
@@ -154,7 +157,26 @@ static int lexer_add_string(struct minjson_lexer *lexer)
     lexer_advance(lexer, len); /* On " closing */
 
     return 0;
+
+fail:
+    /* TODO: report unterminated string */
+    return -1;
 }
+
+
+/* JSON number finite automaton states */
+/* I got ChatGPT to list the states, don't judge me :( */
+enum number_fa_state {
+    Q0_START,
+    Q1_OPT_MINUS,
+    Q2_INITIAL_ZERO,        // Accept
+    Q3_DIGIT,               // Accept
+    Q4_FRAC,
+    Q5_FRAC_DIGIT,          // Accept
+    Q6_EXP,
+    Q7_OPT_MINUS_PLUS,
+    Q8_EXP_DIGIT,           // Accept
+};
 
 static int lexer_add_number(struct minjson_lexer *lexer)
 {
@@ -162,7 +184,70 @@ static int lexer_add_number(struct minjson_lexer *lexer)
     size_t len = 0;
 
     /* either use strtod() to validate (no idea how to save double
-     * as this is a lexer) OR handroll your own state machine or something */
+     * as this is a lexer) OR handroll your own regular language parser */
+
+    enum number_fa_state state = Q0_START;
+
+    while (!is_valid_literal_terminator(*curr)) {
+        switch (state) {
+            case Q0_START:
+                if (*curr == '-') state = Q1_OPT_MINUS;
+                else if (*curr == '0') state = Q2_INITIAL_ZERO;
+                else if (is_onenine(*curr)) state = Q3_DIGIT;
+                else goto fail; 
+                break;
+            case Q1_OPT_MINUS:
+                if (*curr == '0') state = Q2_INITIAL_ZERO;
+                else if (is_onenine(*curr)) state = Q3_DIGIT;
+                else goto fail;
+                break;
+            case Q2_INITIAL_ZERO:
+                if (*curr == '.') state = Q4_FRAC;
+                else if (*curr == 'e' || *curr == 'E') state = Q6_EXP;
+                else goto fail;
+                break;
+            case Q3_DIGIT:
+                if (is_digit(*curr)) state = Q3_DIGIT;
+                else if (*curr == '.') state = Q4_FRAC;
+                else if (*curr == 'e' || *curr == 'E') state = Q6_EXP;
+                else goto fail;
+                break;
+            case Q4_FRAC:
+                if (is_digit(*curr)) state = Q5_FRAC_DIGIT;
+                else goto fail;
+                break;
+            case Q5_FRAC_DIGIT:
+                if (is_digit(*curr)) state = Q5_FRAC_DIGIT;
+                else if (*curr == 'e' || *curr == 'E') state = Q6_EXP;
+                else goto fail;
+                break;
+            case Q6_EXP:
+                if (*curr == '+' || *curr == '-') state = Q7_OPT_MINUS_PLUS;
+                else if (is_digit(*curr)) state = Q8_EXP_DIGIT;
+                else goto fail;
+                break;
+            case Q7_OPT_MINUS_PLUS:
+                if (is_digit(*curr)) state = Q8_EXP_DIGIT;
+                else goto fail;
+                break;
+            case Q8_EXP_DIGIT:
+                if (is_digit(*curr)) state = Q8_EXP_DIGIT;
+                else goto fail;
+                break;
+            default:
+                goto fail;
+                break;
+        }
+        ++curr;
+        ++len;
+    }
+    /* Accept states */
+    if (!(state == Q2_INITIAL_ZERO || state == Q3_DIGIT ||
+          state == Q5_FRAC_DIGIT || state == Q8_EXP_DIGIT))
+        goto fail;
+
+    lexer_add_token(TK_NUMBER, lexer, len);
+    lexer_advance(lexer, len);
 
     return 0;
 
@@ -176,25 +261,27 @@ static int lexer_match_identifier(struct minjson_lexer *lexer,
                                   const char *s,
                                   size_t len)
 {
-    ASSERT(strlen(s) == len);
     /* No way to sanity check type and matched const char *s
      * Just dont use this for stupid thing, I guess.*/
+    ASSERT(strlen(s) == len);
 
-    if (strncmp(lexer->current, s, len) != 0) {
-        /* TODO: reports unidentified identifier */
-        return -1;
-    }
+    const char char_after_identifier = lexer->current[len];
+    if (strncmp(lexer->current, s, len) != 0)
+        goto fail;
+
     /* This is for catching lexer error early on, for cases like
      * truenull, truefalse, and the like*/
-    const char next = lexer->current[len];
-    if (!is_valid_literal_terminator(next)) {
-        /* TODO: reports unidentified identifier */
-        return -1;
-    }
+    if (!is_valid_literal_terminator(char_after_identifier))
+        goto fail;
+
     lexer_add_token(type, lexer, len);
     lexer_advance(lexer, len - 1);
 
     return 0;
+
+fail:
+    /* TODO: report unexpected identifier */
+    return -1;
 }
 
 int lexer_tokenize(struct minjson_lexer *lexer)
@@ -237,7 +324,8 @@ int lexer_tokenize(struct minjson_lexer *lexer)
                 break;
             case '0': case '1': case '2': case '3': case '4': case '5':
             case '6': case '7': case '8': case '9': case '-':
-                lexer_add_number(lexer);
+                if (lexer_add_number(lexer) == -1)
+                    return -1;
                 break;
             case ' ': case '\t': case '\n': case '\r':
                 lexer_skip_whitespaces(lexer);
@@ -245,7 +333,7 @@ int lexer_tokenize(struct minjson_lexer *lexer)
                  * lexer now points to non-whitespace after function above */
                 continue;
             default:
-                /* TODO: reports unexpected token */
+                /* TODO: report unexpected token */
                 return -1;
         }
         lexer_advance(lexer, 1);

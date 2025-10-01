@@ -19,6 +19,15 @@
             "archived": true
         }
     ],
-    "notes": ""
+    "notes": "",
+    "positive_integer": 123,
+    "negative_integer": -456,
+    "zero": 0,
+    "negative_zero_fraction": -0.789,
+    "fraction": 3.1415,
+    "positive_exponent": 6.022e23,
+    "negative_exponent": -1.23E-10,
+    "integer_with_exponent": 0e10,
+    "fraction_with_exponent": 2.71828e+5
 }
 
