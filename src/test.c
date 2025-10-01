@@ -38,10 +38,12 @@ int main(void)
         abort();
     }
 
+    struct minjson_error error = minjson_error_new();
     struct minjson_lexer *lexer = lexer_new(aa, source);
-    if (lexer_tokenize(lexer) == -1) {
+    if (lexer_tokenize(lexer, &error) == -1) {
         arena_allocator_destroy(aa);
-        abort();
+        printf("Error: %s\n", error.message);
+        exit(-1);
     }
     
     lexer_print_tokens(lexer);
