@@ -36,10 +36,11 @@ struct minjson *minjson_parse(struct arena_allocator *doc_aa,
                               const char *raw_json,
                               struct minjson_error *error);
 struct minjson_error minjson_error_new(void);
-struct minjson_lexer *lexer_new(struct arena_allocator *aa,
+struct minjson_lexer *minjson_lexer_new(struct arena_allocator *aa,
                                 const char *raw_json);
 
-int lexer_tokenize(struct minjson_lexer *lexer, struct minjson_error *error);
-void lexer_print_tokens(struct minjson_lexer *lexer);
+int minjson_lexer_tokenize(struct minjson_lexer *lexer,
+                   struct minjson_error *error);
+void minjson_lexer_print_tokens(struct minjson_lexer *lexer);
 
 #endif

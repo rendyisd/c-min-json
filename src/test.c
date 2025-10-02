@@ -39,14 +39,14 @@ int main(void)
     }
 
     struct minjson_error error = minjson_error_new();
-    struct minjson_lexer *lexer = lexer_new(aa, source);
-    if (lexer_tokenize(lexer, &error) == -1) {
+    struct minjson_lexer *lexer = minjson_lexer_new(aa, source);
+    if (minjson_lexer_tokenize(lexer, &error) == -1) {
         arena_allocator_destroy(aa);
         printf("Error: %s\n", error.message);
         exit(-1);
     }
     
-    lexer_print_tokens(lexer);
+    minjson_lexer_print_tokens(lexer);
 
     arena_allocator_destroy(aa);
 

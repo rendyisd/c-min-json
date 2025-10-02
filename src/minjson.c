@@ -3,10 +3,6 @@
 #include <stdio.h>
 #include "minjson.h"
 
-/* Deserialization:
- * Raw jSON -> token -> syntax tree -> C struct
- */ 
-
 enum minjson_type {
     MJ_OBJECT,
     MJ_ARRAY,
@@ -291,7 +287,8 @@ static int lexer_match_literal(struct minjson_lexer *lexer,
     return 0;
 }
 
-int lexer_tokenize(struct minjson_lexer *lexer, struct minjson_error *error)
+int minjson_lexer_tokenize(struct minjson_lexer *lexer,
+                           struct minjson_error *error)
 {
     while (*lexer->current != '\0') {
         switch (*lexer->current) {
@@ -380,7 +377,7 @@ fail_token:
     return -1;
 }
 
-void lexer_print_tokens(struct minjson_lexer *lexer)
+void minjson_lexer_print_tokens(struct minjson_lexer *lexer)
 {
     char *type_name = "";
     struct minjson_token *token = lexer->tk_head;
@@ -405,7 +402,7 @@ void lexer_print_tokens(struct minjson_lexer *lexer)
     }
 }
 
-struct minjson_lexer *lexer_new(struct arena_allocator *aa,
+struct minjson_lexer *minjson_lexer_new(struct arena_allocator *aa,
                                 const char *raw_json)
 {
     struct minjson_lexer *lexer = NULL;
@@ -483,14 +480,20 @@ struct minjson *minjson_parse(struct arena_allocator *doc_aa,
         goto allocator_fail;
     }
 
-    lexer = lexer_new(NULL, raw_json);
+    lexer = minjson_lexer_new(NULL, raw_json);
     if (!lexer) {
         if (free_doc_aa)
             arena_allocator_destroy(doc_aa);
         goto allocator_fail;
     }
 
-    /* Do something here */
+    /* Lexical analysis here */
+    if (minjson_lexer_tokenize(lexer, error) == -1) { 
+        if (free_doc_aa)
+            arena_allocator_destroy(doc_aa);
+        arena_allocator_destroy(lexer->aallocator);
+        return NULL;
+    }
         
     arena_allocator_destroy(lexer->aallocator);
 
