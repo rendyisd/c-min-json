@@ -40,7 +40,7 @@ struct minjson_lexer *minjson_lexer_new(struct arena_allocator *aa,
                                 const char *raw_json);
 
 int minjson_lexer_tokenize(struct minjson_lexer *lexer,
-                   struct minjson_error *error);
+                           struct minjson_error *error);
 void minjson_lexer_print_tokens(struct minjson_lexer *lexer);
 
 #endif

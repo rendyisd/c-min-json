@@ -1,4 +1,6 @@
 # Minimalistic JSON Parser for C
 
-## Non-existent feature
-- String literal escape sequence, especially unicode escape
+## Things to improve
+- Implement string literal escape sequence
+- Better (or atleast cleaner) error handling
+- Give user flexibility to use their own allocator, including the one that requires context

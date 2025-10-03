@@ -19,12 +19,13 @@ struct minjson {
 };
 
 struct minjson_value {
-    enum minjson_type type; /* Bool stored here with value NULL */
+    enum minjson_type type;
     union {
         struct minjson_object *object;
         struct minjson_array *array;
         char *string;
         double number; /* Cast to int if needed */
+        int boolean;
     } value;
 };
 
@@ -193,8 +194,7 @@ static int lexer_add_number(struct minjson_lexer *lexer)
     size_t len = 0;
 
     /* either use strtod() to validate (no idea how to save double
-     * as this is a lexer) OR handroll your own regular language parser */
-
+     * as this is a lexer) OR handroll your own regular language parser (below) */
     enum number_fa_state state = Q0_START;
 
     while (!is_valid_literal_terminator(*curr)) {
@@ -457,6 +457,146 @@ struct minjson *minjson_new(struct arena_allocator *aa)
     return doc;
 }
 
+/* This should always belong to the caller so just return the whole struct */
+struct minjson_error minjson_error_new(void)
+{
+    struct minjson_error error;
+    error.code = MJ_CODE_OK;
+    error.line = 0;
+    error.column = 0;
+
+    return error;
+}
+
+struct minjson_object *minjson_parse_object(struct minjson_token **token,
+                                            struct arena_allocator *aa,
+                                            struct minjson_error *error)
+{
+    struct minjson_object *object = \
+        arena_allocator_alloc(aa,
+                              DEFAULT_ALIGNMENT,
+                              sizeof(struct minjson_object));
+    if (!object) {
+        minjson_error_set(error, MJ_ERR_ALLOCATOR, "memory allocator failed", 0, 0);
+        return NULL;
+    }
+
+    /* TODO parse object */
+
+    return object;
+}
+ 
+struct minjson_array *minjson_parse_array(struct minjson_token **token,
+                                          struct arena_allocator *aa,
+                                          struct minjson_error *error)
+{
+    struct minjson_array *array = \
+        arena_allocator_alloc(aa,
+                              DEFAULT_ALIGNMENT,
+                              sizeof(struct minjson_array));
+    if (!array) {
+        minjson_error_set(error, MJ_ERR_ALLOCATOR, "memory allocator failed", 0, 0);
+        return NULL;
+    }
+
+    /* TODO parse array */
+
+    return array;
+}
+
+struct minjson_value *minjson_parse_value(struct minjson_token **token,
+                                          struct arena_allocator *aa,
+                                          struct minjson_error *error)
+{
+    struct minjson_value *val = NULL;
+    struct minjson_token *current = *token;
+    char *temp = NULL;
+    if (current) {
+        val = arena_allocator_alloc(aa,
+                                     DEFAULT_ALIGNMENT,
+                                     sizeof(struct minjson_value));
+        if (!val)
+            goto fail_allocator;
+
+        /* Let parse function below advance current token */
+        switch (current->type) {
+            case TK_OPEN_CB:
+                val->type = MJ_OBJECT;
+                val->value.object = minjson_parse_object(&current, aa, error);
+                if (!val->value.object)
+                    return NULL;
+                break;
+            case TK_OPEN_SB:
+                val->type = MJ_ARRAY;
+                val->value.array = minjson_parse_array(&current, aa, error);
+                if (!val->value.array)
+                    return NULL;
+                break;
+            case TK_TRUE:
+                val->type = MJ_TRUE;
+                val->value.boolean = 1;
+                break;
+            case TK_FALSE:
+                val->type = MJ_FALSE;
+                val->value.boolean = 0;
+                break;
+            case TK_NULL:
+                val->type = MJ_NULL;
+                val->value.boolean = 0;
+                break;
+            case TK_NUMBER: 
+                temp = arena_allocator_alloc(aa,
+                                             DEFAULT_ALIGNMENT,
+                                             current->len + 1);
+                if (!temp)
+                    goto fail_allocator;
+
+                val->type = MJ_NUMBER;
+
+                memcpy(temp, current->lexeme, current->len);
+                temp[current->len] = '\0';
+
+                val->value.number = strtod(temp, NULL);
+                break;
+            case TK_STRING:
+                temp = arena_allocator_alloc(aa,
+                                             DEFAULT_ALIGNMENT,
+                                             current->len + 1);
+                if (!temp)
+                    goto fail_allocator;
+
+                val->type = MJ_STRING;
+
+                memcpy(temp, current->lexeme, current->len);
+                temp[current->len] = '\0';
+
+                val->value.string = temp;
+
+                break;
+            default:
+                goto fail_unexpected_token;
+                break;
+        }
+        current = current->next;
+    }
+
+    *token = current;
+
+    return val;
+
+fail_allocator:
+    minjson_error_set(error, MJ_ERR_ALLOCATOR, "memory allocator failed", 0, 0);
+    return NULL;
+
+fail_unexpected_token:
+    minjson_error_set(error,
+                      MJ_ERR_TOKEN,
+                      "syntax error, unexpected token at line %zu, column %zu",
+                      current->line,
+                      current->column);
+    return NULL;
+}
+
 /* raw_json must be null terminated */
 struct minjson *minjson_parse(struct arena_allocator *doc_aa,
                               const char *raw_json,
@@ -471,20 +611,20 @@ struct minjson *minjson_parse(struct arena_allocator *doc_aa,
         free_doc_aa = 1;
         doc_aa = arena_allocator_new(DEFAULT_ARENA_SIZE);
         if (!doc_aa)
-            goto allocator_fail;
+            goto fail_allocator;
     }
     doc = minjson_new(doc_aa);
     if (!doc) {
         if (free_doc_aa)
             arena_allocator_destroy(doc_aa);
-        goto allocator_fail;
+        goto fail_allocator;
     }
 
     lexer = minjson_lexer_new(NULL, raw_json);
     if (!lexer) {
         if (free_doc_aa)
             arena_allocator_destroy(doc_aa);
-        goto allocator_fail;
+        goto fail_allocator;
     }
 
     /* Lexical analysis here */
@@ -494,22 +634,33 @@ struct minjson *minjson_parse(struct arena_allocator *doc_aa,
         arena_allocator_destroy(lexer->aallocator);
         return NULL;
     }
+
+    /* Parsing here */
+    struct minjson_token *current = lexer->tk_head;
+    doc->root = minjson_parse_value(&current, doc_aa, error);
+    if (!doc->root) {
+        if (free_doc_aa) 
+            arena_allocator_destroy(doc_aa);
+        doc = NULL;
+    }
+
+    /* There shouldn't be anymore token */
+    if (current) {
+        if (free_doc_aa) 
+            arena_allocator_destroy(doc_aa);
+        minjson_error_set(error,
+                          MJ_ERR_TOKEN,
+                          "syntax error, unexpected token at line %zu, column %zu",
+                          current->line,
+                          current->column);
+        doc = NULL;
+    }
         
     arena_allocator_destroy(lexer->aallocator);
 
     return doc;
 
-allocator_fail:
+fail_allocator:
     minjson_error_set(error, MJ_ERR_ALLOCATOR, "memory allocator failed", 0, 0);
     return NULL;
-}
-
-struct minjson_error minjson_error_new(void)
-{
-    struct minjson_error error;
-    error.code = MJ_CODE_OK;
-    error.line = 0;
-    error.column = 0;
-
-    return error;
 }
