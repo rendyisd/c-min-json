@@ -25,6 +25,9 @@ enum minjson_error_code {
     MJ_ERR_STRING,
     MJ_ERR_LITERAL,
     MJ_ERR_NUMBER,
+    MJ_ERR_OBJECT,
+    MJ_ERR_ARRAY,
+    MJ_ERR_VALUE,
 };
 struct minjson_error {
     enum minjson_error_code code;
