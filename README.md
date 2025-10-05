@@ -2,6 +2,7 @@
 
 ## Things to improve
 - Implement string literal escape sequence
-- Better (or atleast cleaner) error handling
+- Error handling is still really funky. Works fine but the diagnosis doesn't \
+  work well as it stops at the first error it encountered
 - Give user flexibility to use their own allocator, including the one that requires context
-- Kinda used linked list too much in this, probably for the best... or not.
+- Kinda used linked list too much in this, probably for the best... or not
