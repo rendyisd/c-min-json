@@ -4,3 +4,4 @@
 - Implement string literal escape sequence
 - Better (or atleast cleaner) error handling
 - Give user flexibility to use their own allocator, including the one that requires context
+- Kinda used linked list too much in this, probably for the best... or not.

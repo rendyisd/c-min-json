@@ -29,17 +29,30 @@ struct minjson_value {
     } value;
 };
 
-/* Any number of key value pair */
+
+struct minjson_object_entry {
+    char *key;
+    struct minjson_value *value;
+    struct minjson_object_entry *next;
+};
+
+/* Any number of minjson_object_entry */
 struct minjson_object { /* This itself is value of type object */
-    char **keys;
-    struct minjson_value **values;
-    size_t len, capacity;
+    struct minjson_object_entry *head;
+    struct minjson_object_entry *tail;
+    size_t len;
+};
+
+struct minjson_array_entry {
+    struct minjson_value *value;
+    struct minjson_array_entry *next;
 };
 
 /* Any number of value(any type) */
 struct minjson_array { /* This itself is value of type array */
-    struct minjson_value **items;
-    size_t len, capacity;
+    struct minjson_array_entry *head;
+    struct minjson_array_entry *tail;
+    size_t len;
 };
 
 enum token_type {
@@ -472,6 +485,32 @@ struct minjson_value *minjson_parse_value(struct minjson_token **token,
                                           struct arena_allocator *aa,
                                           struct minjson_error *error);
 
+int minjson_object_create_entry(struct minjson_object *object,
+                                struct arena_allocator *aa,
+                                char *key,
+                                struct minjson_value *value)
+{
+    struct minjson_object_entry *entry = \
+        arena_allocator_alloc(aa,
+                              DEFAULT_ALIGNMENT,
+                              sizeof(struct minjson_object_entry));
+    if (!entry)
+        return -1;
+
+    entry->key = key;
+    entry->value = value;
+
+    if (object->tail)
+        object->tail->next = entry;
+    else
+        object->head = entry;
+    object->tail = entry;
+
+    ++object->len;
+
+    return 0;
+}
+
 struct minjson_object *minjson_parse_object(struct minjson_token **token,
                                             struct arena_allocator *aa,
                                             struct minjson_error *error)
@@ -482,10 +521,9 @@ struct minjson_object *minjson_parse_object(struct minjson_token **token,
                               sizeof(struct minjson_object));
     if (!object)
         goto fail_allocator;
-    object->keys = NULL; 
-    object->values = NULL;
+    object->head = NULL;
+    object->tail =  NULL;
     object->len = 0;
-    object->capacity = 0;
 
     /* string -> colon -> value, if delimiter repeat cycle, else expect '}' */
     struct minjson_token *current = *token;
@@ -498,24 +536,37 @@ struct minjson_object *minjson_parse_object(struct minjson_token **token,
     }
     
     while(lookahead && lookahead->type != TK_CLOSE_CB) {
+        /* KEY */
         if (!lookahead || lookahead->type != TK_STRING)
             goto fail_expected_string;
         current = current->next;
-        lookahead = current->next;
-        /* TODO: insert key */
+        lookahead = current->next; 
+        char *key = arena_allocator_alloc(aa,
+                                          DEFAULT_ALIGNMENT,
+                                          current->len + 1);
+        memcpy(key, current->lexeme, current->len);
+        key[current->len] = '\0';
 
+        /* COLON */
         if (!lookahead || lookahead->type != TK_COLON)
             goto fail_expected_colon;
         current = current->next;
         lookahead = current->next;
 
+        /* VALUE */
         if (!lookahead)
             goto fail_expected_value;
         current = current->next;
         lookahead = current->next;
-        minjson_parse_value(&current, aa, error);
-        /* TODO: insert value if above null just return null*/
+        struct minjson_value *value = minjson_parse_value(&current, aa, error);
+        if (!value)
+            return NULL;
 
+        /* INSERT INTO OBJECT */
+        if (minjson_object_create_entry(object, aa, key, value) == -1)
+            goto fail_allocator;
+
+        /* DELIMITER */
         if (lookahead && lookahead->type == TK_DELIMITER) {
             current = current->next;
             lookahead = current->next;
