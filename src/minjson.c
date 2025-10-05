@@ -269,7 +269,7 @@ static int lexer_add_number(struct minjson_lexer *lexer)
         return -1;
 
     lexer_add_token(TK_NUMBER, lexer, len);
-    lexer_advance(lexer, len);
+    lexer_advance(lexer, len - 1); /* So this doesn't go pass the delimiter */
 
     return 0;
 }
@@ -416,7 +416,7 @@ void minjson_lexer_print_tokens(struct minjson_lexer *lexer)
 }
 
 struct minjson_lexer *minjson_lexer_new(struct arena_allocator *aa,
-                                const char *raw_json)
+                                        const char *raw_json)
 {
     struct minjson_lexer *lexer = NULL;
     /* If aa belongs to caller, dont free on error */
@@ -499,13 +499,12 @@ int minjson_object_create_entry(struct minjson_object *object,
 
     entry->key = key;
     entry->value = value;
-
+    entry->next = NULL;
     if (object->tail)
         object->tail->next = entry;
     else
         object->head = entry;
     object->tail = entry;
-
     ++object->len;
 
     return 0;
@@ -527,20 +526,18 @@ struct minjson_object *minjson_parse_object(struct minjson_token **token,
 
     /* string -> colon -> value, if delimiter repeat cycle, else expect '}' */
     struct minjson_token *current = *token;
-    struct minjson_token *lookahead = current->next;
 
-    if (lookahead && lookahead->type == TK_CLOSE_CB) {
+    if (current->next && current->next->type == TK_CLOSE_CB) {
         current = current->next;
         *token = current;
         return object;
     }
-    
-    while(lookahead && lookahead->type != TK_CLOSE_CB) {
+
+    while (current && current->type != TK_CLOSE_CB) {
         /* KEY */
-        if (!lookahead || lookahead->type != TK_STRING)
-            goto fail_expected_string;
         current = current->next;
-        lookahead = current->next; 
+        if (!current || current->type != TK_STRING)
+            goto fail_expected_string;
         char *key = arena_allocator_alloc(aa,
                                           DEFAULT_ALIGNMENT,
                                           current->len + 1);
@@ -548,39 +545,29 @@ struct minjson_object *minjson_parse_object(struct minjson_token **token,
         key[current->len] = '\0';
 
         /* COLON */
-        if (!lookahead || lookahead->type != TK_COLON)
-            goto fail_expected_colon;
         current = current->next;
-        lookahead = current->next;
+        if (!current || current->type != TK_COLON)
+            goto fail_expected_colon;
 
         /* VALUE */
-        if (!lookahead)
-            goto fail_expected_value;
         current = current->next;
-        lookahead = current->next;
+        if(!current)
+            goto fail_expected_value;
         struct minjson_value *value = minjson_parse_value(&current, aa, error);
         if (!value)
             return NULL;
 
-        /* INSERT INTO OBJECT */
         if (minjson_object_create_entry(object, aa, key, value) == -1)
             goto fail_allocator;
 
         /* DELIMITER */
-        if (lookahead && lookahead->type == TK_DELIMITER) {
-            current = current->next;
-            lookahead = current->next;
-            continue;
-        } else {
+        if (!current || current->type != TK_DELIMITER)
             break;
-        }
     }
 
-    if (!lookahead || lookahead->type != TK_CLOSE_CB)
+    if (!current || current->type != TK_CLOSE_CB)
         goto fail_expected_closing_brace;
 
-    current = lookahead;
-    current = current->next; /* Consume } */
     *token = current;
 
     return object;
@@ -617,6 +604,28 @@ fail_expected_closing_brace:
                       current->line, current->column);
     return NULL;
 }
+
+int minjson_array_create_entry(struct minjson_array* array,
+                               struct arena_allocator* aa,
+                               struct minjson_value *value)
+{
+    struct minjson_array_entry *entry = \
+        arena_allocator_alloc(aa,
+                              DEFAULT_ALIGNMENT,
+                              sizeof(struct minjson_array_entry));
+    if(!entry)
+        return -1;
+    entry->value = value;
+    entry->next = NULL;
+    if (array->tail)
+        array->tail->next = entry;
+    else
+        array->head = entry;
+    array->tail = entry;
+    ++array->len;
+
+    return 0;
+}
  
 struct minjson_array *minjson_parse_array(struct minjson_token **token,
                                           struct arena_allocator *aa,
@@ -626,14 +635,62 @@ struct minjson_array *minjson_parse_array(struct minjson_token **token,
         arena_allocator_alloc(aa,
                               DEFAULT_ALIGNMENT,
                               sizeof(struct minjson_array));
-    if (!array) {
-        minjson_error_set(error, MJ_ERR_ALLOCATOR, "memory allocator failed", 0, 0);
-        return NULL;
+    if (!array)
+        goto fail_allocator;
+
+    array->head = NULL;
+    array->tail = NULL;
+    array->len = 0;
+
+    struct minjson_token *current = *token;
+
+    if (current->next && current->next->type == TK_CLOSE_SB) {
+        current = current->next;
+        *token = current;
+        return array;
     }
 
-    /* TODO parse array */
+    while (current && current->type != TK_CLOSE_SB) {
+        /* VALUE */
+        current = current->next;
+        if(!current)
+            goto fail_expected_value;
+        struct minjson_value *value = minjson_parse_value(&current, aa, error);
+        if (!value)
+            return NULL;
+
+        if (minjson_array_create_entry(array, aa, value) == -1)
+            goto fail_allocator;
+
+        /* DELIMITER */
+        if (!current || current->type != TK_DELIMITER)
+            break;
+    }
+
+    if (!current || current->type != TK_CLOSE_SB)
+        goto fail_expected_closing_bracket;
+
+    *token = current;
 
     return array;
+
+fail_allocator: 
+    minjson_error_set(error, MJ_ERR_ALLOCATOR, "memory allocator failed", 0, 0);
+    return NULL;
+
+fail_expected_value:
+    minjson_error_set(error,
+                      MJ_ERR_OBJECT,
+                      "syntax error, expected value at line %zu, column %zu",
+                      current->line, current->column);
+    return NULL;
+
+fail_expected_closing_bracket:
+    minjson_error_set(error,
+                      MJ_ERR_OBJECT,
+                      "syntax error, expected ']' at end of array, line %zu, column %zu",
+                      current->line, current->column);
+    return NULL;
 }
 
 struct minjson_value *minjson_parse_value(struct minjson_token **token,
@@ -666,17 +723,14 @@ struct minjson_value *minjson_parse_value(struct minjson_token **token,
             case TK_TRUE:
                 val->type = MJ_TRUE;
                 val->value.boolean = 1;
-                current = current->next;
                 break;
             case TK_FALSE:
                 val->type = MJ_FALSE;
                 val->value.boolean = 0;
-                current = current->next;
                 break;
             case TK_NULL:
                 val->type = MJ_NULL;
                 val->value.boolean = 0;
-                current = current->next;
                 break;
             case TK_NUMBER: 
                 temp = arena_allocator_alloc(aa,
@@ -691,7 +745,6 @@ struct minjson_value *minjson_parse_value(struct minjson_token **token,
                 temp[current->len] = '\0';
 
                 val->value.number = strtod(temp, NULL);
-                current = current->next;
                 break;
             case TK_STRING:
                 temp = arena_allocator_alloc(aa,
@@ -706,12 +759,12 @@ struct minjson_value *minjson_parse_value(struct minjson_token **token,
                 temp[current->len] = '\0';
 
                 val->value.string = temp;
-                current = current->next;
                 break;
             default:
                 goto fail_unexpected_token;
                 break;
         }
+        current = current->next;
     } else {
         goto fail_expected_value;
     }
@@ -759,53 +812,56 @@ struct minjson *minjson_parse(struct arena_allocator *doc_aa,
             goto fail_allocator;
     }
     doc = minjson_new(doc_aa);
-    if (!doc) {
-        if (free_doc_aa)
-            arena_allocator_destroy(doc_aa);
+    if (!doc)
         goto fail_allocator;
-    }
 
     lexer = minjson_lexer_new(NULL, raw_json);
-    if (!lexer) {
-        if (free_doc_aa)
-            arena_allocator_destroy(doc_aa);
+    if (!lexer)
         goto fail_allocator;
-    }
 
     /* Lexical analysis here */
-    if (minjson_lexer_tokenize(lexer, error) == -1) { 
-        if (free_doc_aa)
-            arena_allocator_destroy(doc_aa);
-        arena_allocator_destroy(lexer->aallocator);
-        return NULL;
-    }
+    if (minjson_lexer_tokenize(lexer, error) == -1)
+        goto fail;
 
     /* Parsing here */
     struct minjson_token *current = lexer->tk_head;
     doc->root = minjson_parse_value(&current, doc_aa, error);
-    if (!doc->root) {
-        if (free_doc_aa) 
-            arena_allocator_destroy(doc_aa);
-        doc = NULL;
-    }
+    if (!doc->root)
+        goto fail;
 
     /* There shouldn't be anymore token */
-    if (current->next) {
-        if (free_doc_aa) 
-            arena_allocator_destroy(doc_aa);
-        minjson_error_set(error,
-                          MJ_ERR_TOKEN,
-                          "syntax error, unexpected token at line %zu, column %zu",
-                          current->line,
-                          current->column);
-        doc = NULL;
-    }
+    if (current)
+        goto fail_unexpected_token;
         
     arena_allocator_destroy(lexer->aallocator);
 
     return doc;
 
 fail_allocator:
+    if (free_doc_aa)
+        arena_allocator_destroy(doc_aa);
+    if (lexer)
+        arena_allocator_destroy(lexer->aallocator);
     minjson_error_set(error, MJ_ERR_ALLOCATOR, "memory allocator failed", 0, 0);
     return NULL;
+
+fail_unexpected_token:
+    if (free_doc_aa)
+        arena_allocator_destroy(doc_aa);
+    if (lexer)
+        arena_allocator_destroy(lexer->aallocator);
+    minjson_error_set(error,
+                      MJ_ERR_TOKEN,
+                      "syntax error, unexpected token at line %zu, column %zu",
+                      current->line,
+                      current->column);
+    return NULL;
+
+fail:
+    if (free_doc_aa)
+        arena_allocator_destroy(doc_aa);
+    if (lexer)
+        arena_allocator_destroy(lexer->aallocator);
+    return NULL;
+
 }
