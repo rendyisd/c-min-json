@@ -598,10 +598,17 @@ fail_expected_value:
     return NULL;
 
 fail_expected_closing_brace:
-    minjson_error_set(error,
-                      MJ_ERR_OBJECT,
-                      "syntax error, expected '}' at end of object, line %zu, column %zu",
-                      current->line, current->column);
+    if (!current) {
+        minjson_error_set(error,
+                          MJ_ERR_OBJECT,
+                          "syntax error, unexpected EOF",
+                          0, 0);
+    } else {
+        minjson_error_set(error,
+                          MJ_ERR_OBJECT,
+                          "syntax error, expected '}' at end of object, line %zu, column %zu",
+                          current->line, current->column);
+    }
     return NULL;
 }
 
@@ -686,10 +693,17 @@ fail_expected_value:
     return NULL;
 
 fail_expected_closing_bracket:
-    minjson_error_set(error,
-                      MJ_ERR_OBJECT,
-                      "syntax error, expected ']' at end of array, line %zu, column %zu",
-                      current->line, current->column);
+    if (!current) {
+        minjson_error_set(error,
+                          MJ_ERR_OBJECT,
+                          "syntax error, unexpected EOF",
+                          0, 0);
+    } else {
+        minjson_error_set(error,
+                          MJ_ERR_OBJECT,
+                          "syntax error, expected ']' at end of array, line %zu, column %zu",
+                          current->line, current->column);
+    }
     return NULL;
 }
 
