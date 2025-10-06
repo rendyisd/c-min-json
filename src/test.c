@@ -29,7 +29,7 @@ int main(void)
             if ( ferror( fp ) != 0 ) {
                 fputs("Error reading file", stderr);
             } else {
-                source[newLen] = '\0'; /* Just to be safe. */
+                source[newLen] = '\0';
             }
         }
         fclose(fp);
@@ -45,6 +45,14 @@ int main(void)
         printf("Error: %s\n", error.message);
         exit(-1);
     }
+    
+    struct minjson_value *value_1 = minjson_get(doc, "projects");
+    struct minjson_value *value_2 = minjson_array_get(minjson_value_get_array(value_1),
+                                                      1);
+    struct minjson_value *value_3 = minjson_object_get(minjson_value_get_object(value_2),
+                                                       "title");
+    if (minjson_value_is_string(value_3))
+        printf("Obtained: %s\n", minjson_value_get_string(value_3));
     
     arena_allocator_destroy(aa);
 

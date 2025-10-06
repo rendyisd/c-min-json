@@ -809,6 +809,8 @@ fail_unexpected_token:
     return NULL;
 }
 
+/* ================== Public Facing API ================== */
+
 /* raw_json must be null terminated */
 struct minjson *minjson_parse(struct arena_allocator *doc_aa,
                               const char *raw_json,
@@ -878,4 +880,98 @@ fail:
         arena_allocator_destroy(lexer->aallocator);
     return NULL;
 
+}
+
+struct minjson_value *minjson_get(struct minjson *doc, const char *key)
+{
+    if (!doc || doc->root->type != MJ_OBJECT)
+        return NULL;
+
+    struct minjson_value *value = minjson_object_get(doc->root->value.object,
+                                                     key);
+
+    return value;
+}
+
+struct minjson_value *minjson_object_get(struct minjson_object *object,
+                                         const char *key)
+{
+    if (!object || !key)
+        return NULL;
+
+    struct minjson_object_entry *entry = object->head;
+    while (entry) {
+        if (strcmp(key, entry->key) == 0)
+            return entry->value;
+        entry = entry->next;
+    }
+    return NULL;
+}
+
+struct minjson_value *minjson_array_get(struct minjson_array *array,
+                                        size_t index)
+{
+    if (!array || index >= array->len)
+        return NULL;
+
+    struct minjson_array_entry *entry = array->head;
+    for (size_t i = 0; entry && i != index; ++i)
+        entry = entry->next;
+
+    return entry ? entry->value : NULL;
+}
+
+size_t minjson_array_get_size(struct minjson_array *array)
+{
+    return array->len;
+}
+
+int minjson_value_is_null(struct minjson_value *value)
+{
+    return (value && value->type == MJ_NULL);
+}
+
+int minjson_value_is_number(struct minjson_value *value)
+{
+    return (value && value->type == MJ_NUMBER);
+}
+double minjson_value_get_number(struct minjson_value *value)
+{
+    return value->value.number;
+}
+
+int minjson_value_is_string(struct minjson_value *value)
+{
+    return (value && value->type == MJ_STRING);
+}
+char *minjson_value_get_string(struct minjson_value *value)
+{
+    return value->value.string;
+}
+
+int minjson_value_is_bool(struct minjson_value *value)
+{
+    return (value && (value->type == MJ_TRUE || value->type == MJ_FALSE));
+}
+int minjson_value_get_bool(struct minjson_value *value)
+{
+    return value->value.boolean;
+}
+
+int minjson_value_is_array(struct minjson_value *value)
+{
+    return (value && value->type == MJ_ARRAY);
+}
+struct minjson_array *minjson_value_get_array(struct minjson_value *value)
+{
+    return value->value.array;
+}
+
+int minjson_value_is_object(struct minjson_value *value)
+{
+    return (value && value->type == MJ_OBJECT);
+}
+struct minjson_object *minjson_value_get_object(struct minjson_value *value)
+{
+    return value->value.object;
 }
