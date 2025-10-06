@@ -13,10 +13,7 @@ enum minjson_type {
     MJ_NULL,
 };
 
-struct minjson {
-    struct arena_allocator *aallocator;
-    struct minjson_value *root;
-};
+struct minjson;
 
 struct minjson_value {
     enum minjson_type type;
@@ -887,31 +884,34 @@ struct minjson_value *minjson_get(struct minjson *doc, const char *key)
     if (!doc || doc->root->type != MJ_OBJECT)
         return NULL;
 
-    struct minjson_value *value = minjson_object_get(doc->root->value.object,
+    struct minjson_value *value = minjson_object_get(doc->root,
                                                      key);
 
     return value;
 }
 
-struct minjson_value *minjson_object_get(struct minjson_object *object,
+struct minjson_value *minjson_object_get(struct minjson_value *value,
                                          const char *key)
 {
-    if (!object || !key)
+    if (!value || !key || !minjson_value_is_object(value))
         return NULL;
-
-    struct minjson_object_entry *entry = object->head;
-    while (entry) {
+    
+    struct minjson_object_entry *entry = value->value.object->head;
+    for (; entry; entry = entry->next)
         if (strcmp(key, entry->key) == 0)
             return entry->value;
-        entry = entry->next;
-    }
+ 
     return NULL;
 }
 
-struct minjson_value *minjson_array_get(struct minjson_array *array,
+struct minjson_value *minjson_array_get(struct minjson_value *value,
                                         size_t index)
 {
-    if (!array || index >= array->len)
+    if (!value || !minjson_value_is_array(value))
+        return NULL;
+
+    struct minjson_array *array = minjson_value_get_array(value);
+    if (index >= array->len)
         return NULL;
 
     struct minjson_array_entry *entry = array->head;

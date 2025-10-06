@@ -15,9 +15,11 @@
 #include "arena.h"
 
 
-struct minjson;
+struct minjson {
+    struct arena_allocator *aallocator;
+    struct minjson_value *root;
+};
 struct minjson_lexer;
-
 struct minjson_object;
 struct minjson_array;
 
@@ -55,10 +57,10 @@ struct minjson_error minjson_error_new(void);
 
 struct minjson_value *minjson_get(struct minjson *doc, const char *key);
 
-struct minjson_value *minjson_object_get(struct minjson_object *object,
+struct minjson_value *minjson_object_get(struct minjson_value *value,
                                          const char *key);
 
-struct minjson_value *minjson_array_get(struct minjson_array *array,
+struct minjson_value *minjson_array_get(struct minjson_value *value,
                                         size_t index);
 
 size_t minjson_array_get_size(struct minjson_array *array);

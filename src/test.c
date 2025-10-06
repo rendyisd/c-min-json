@@ -47,11 +47,9 @@ int main(void)
     }
     
     struct minjson_value *value_1 = minjson_get(doc, "projects");
-    struct minjson_value *value_2 = minjson_array_get(minjson_value_get_array(value_1),
-                                                      1);
-    struct minjson_value *value_3 = minjson_object_get(minjson_value_get_object(value_2),
-                                                       "title");
-    if (minjson_value_is_string(value_3))
+    struct minjson_value *value_2 = minjson_array_get(value_1, 1);
+    struct minjson_value *value_3 = minjson_object_get(value_2, "title");
+    if (value_3 && minjson_value_is_string(value_3))
         printf("Obtained: %s\n", minjson_value_get_string(value_3));
     
     arena_allocator_destroy(aa);
