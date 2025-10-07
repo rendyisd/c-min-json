@@ -65,6 +65,7 @@ int main(void)
     struct minjson_error error = minjson_error_new();
     struct minjson *root = minjson_parse(aa, raw_json, &error);
     if (!root) {
+        free(raw_json);
         arena_allocator_destroy(aa);
         fprintf(stderr, "Error: %s\n", error.message);
         exit(-1);
