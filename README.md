@@ -79,8 +79,6 @@ int main(void)
         printf("School name: %s\n\n", minjson_value_get_string(school));
 
     struct minjson_value *students = minjson_get(root, "students");
-
-    /* Resolve minjson_value to minjson_array and get its size */
     size_t n_students = minjson_array_get_size(students);
 
     for (size_t i = 0; i < n_students; ++i) {
@@ -89,7 +87,6 @@ int main(void)
         struct minjson_value *student_id = minjson_object_get(student, "id");
         struct minjson_value *student_name = minjson_object_get(student, "name");
         struct minjson_value *student_scores = minjson_object_get(student, "scores");
-
         size_t n_scores = minjson_array_get_size(student_scores);
 
         /* Cast to int as JSON number is stored as double */
