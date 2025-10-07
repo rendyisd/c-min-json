@@ -1,14 +1,12 @@
 #include <stdio.h>
+#include <stdlib.h>
 
-#include "arena.h"
-#include "minjson.h"
-
-int main(void)
+char *read_from_file(char *path)
 {
-    struct arena_allocator *aa = arena_allocator_new(DEFAULT_ARENA_SIZE);
-    char *source = NULL;
     /* Code for reading a file from stack overflow */
-    FILE *fp = fopen("src/test.json", "r");
+
+    char *result = NULL;
+    FILE *fp = fopen(path, "r");
     if (fp != NULL) {
         /* Go to the end of the file. */
         if (fseek(fp, 0L, SEEK_END) == 0) {
@@ -17,42 +15,82 @@ int main(void)
             if (bufsize == -1) { /* Error */ }
 
             /* Allocate our buffer to that size. */
-            source = arena_allocator_alloc(aa,
-                                           DEFAULT_ALIGNMENT,
-                                           sizeof(char) * (bufsize + 1));
+            result = malloc(bufsize + 1);
 
             /* Go back to the start of the file. */
             if (fseek(fp, 0L, SEEK_SET) != 0) { /* Error */ }
 
             /* Read the entire file into memory. */
-            size_t newLen = fread(source, sizeof(char), bufsize, fp);
+            size_t new_len = fread(result, sizeof(char), bufsize, fp);
             if ( ferror( fp ) != 0 ) {
                 fputs("Error reading file", stderr);
             } else {
-                source[newLen] = '\0';
+                result[new_len] = '\0';
             }
         }
         fclose(fp);
-    } else {
-        arena_allocator_destroy(aa);
-        abort();
     }
 
+    return result;
+
+}
+
+#include "arena.h"
+#include "minjson.h"
+
+int main(void)
+{
+    struct arena_allocator *aa = arena_allocator_new(DEFAULT_ARENA_SIZE);
+
+    /* No, this function is not included in the library.
+     * But basically, raw_json must be null terminated.*/
+    char *raw_json = read_from_file("src/example.json");
+
     struct minjson_error error = minjson_error_new();
-    struct minjson *doc = minjson_parse(aa, source, &error);
-    if (!doc) {
+    struct minjson *root = minjson_parse(aa, raw_json, &error);
+    if (!root) {
         arena_allocator_destroy(aa);
-        printf("Error: %s\n", error.message);
+        fprintf(stderr, "Error: %s\n", error.message);
         exit(-1);
     }
-    
-    struct minjson_value *value_1 = minjson_get(doc, "projects");
-    struct minjson_value *value_2 = minjson_array_get(value_1, 1);
-    struct minjson_value *value_3 = minjson_object_get(value_2, "title");
-    if (value_3 && minjson_value_is_string(value_3))
-        printf("Obtained: %s\n", minjson_value_get_string(value_3));
-    
+
+    /* This is just a wrapper it takes the root value and assume its an object */
+    struct minjson_value *school = minjson_get(root, "school");
+
+    /* You should generally check value type before using unless
+     * you are sure whats in it */
+    if (minjson_value_is_string(school))
+        printf("School name: %s\n\n", minjson_value_get_string(school));
+
+    struct minjson_value *students = minjson_get(root, "students");
+
+    /* Resolve minjson_value to minjson_array and get its size */
+    size_t n_students = minjson_array_get_size(students);
+
+    for (size_t i = 0; i < n_students; ++i) {
+        struct minjson_value *student = minjson_array_get(students, i);
+
+        struct minjson_value *student_id = minjson_object_get(student, "id");
+        struct minjson_value *student_name = minjson_object_get(student, "name");
+        struct minjson_value *student_scores = minjson_object_get(student, "scores");
+
+        size_t n_scores = minjson_array_get_size(student_scores);
+
+        /* Cast to int as JSON number is stored as double */
+        printf("ID: %d\n", (int)minjson_value_get_number(student_id));
+        printf("Name: %s\n", minjson_value_get_string(student_name));
+        printf("Score: ");
+
+        for (size_t j = 0; j < n_scores; ++j) {
+            struct minjson_value *score = minjson_array_get(student_scores, j);
+            printf("%d ", (int)minjson_value_get_number(score));
+        }
+
+        printf("\n\n");
+    }
+
     arena_allocator_destroy(aa);
+    free(raw_json);
 
     return 0;
 }

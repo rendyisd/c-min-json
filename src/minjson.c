@@ -921,9 +921,12 @@ struct minjson_value *minjson_array_get(struct minjson_value *value,
     return entry ? entry->value : NULL;
 }
 
-size_t minjson_array_get_size(struct minjson_array *array)
+size_t minjson_array_get_size(struct minjson_value* value)
 {
-    return array->len;
+    ASSERT(minjson_value_is_array(value));
+
+    /* I really dont want to return 0 on error as it would introduce bug */
+    return value->value.array->len;
 }
 
 int minjson_value_is_null(struct minjson_value *value)

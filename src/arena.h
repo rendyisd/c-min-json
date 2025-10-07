@@ -36,10 +36,33 @@
 
 #include <stdlib.h>
 
+/**
+ * @brief   An arena allocator that contains 1 or multiple chained arena
+ */
 struct arena_allocator;
 
+/**
+ * @brief   Creates a new arena_allocator.
+ */
 struct arena_allocator *arena_allocator_new(size_t size);
+
+/**
+ * @brief   Destroy given arena_allocator and all arena inside of it.
+ */
 void arena_allocator_destroy(struct arena_allocator *aa);
+
+/**
+ * @brief   Allocates size amount of bytes from the arena inside arena_allocator.
+ *
+ * Allocates a block of memory of the specified size and given alignment.
+ * arena_allocator grows by creating a new arena if capacity is not sufficient.
+ *
+ * @param   aa          The arena allocator.
+ * @param   alignment   The block alignment to its neighboring blocks. Must be power of 2
+ * @param   size        Number of bytes to allocate
+ *
+ * @return  Pointer to the allocated memory, NULL on error.
+ */ 
 void *arena_allocator_alloc(struct arena_allocator *aa,
                             size_t alignment,
                             size_t size);
