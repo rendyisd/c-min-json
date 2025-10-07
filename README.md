@@ -14,6 +14,10 @@ sequence yet.
 - Easily integrated into existing project
 - Performs lexical analysis, recursive descent parsing, and error handling
 - Simple and minimalistic (I guess)
+- ANSI C compliance EXCEPT for the use of snprintf in `minjson_error_set`.
+> **_NOTE:_** If you really need to compile this with C89 standard use `sprintf`
+(not reccomended) and increase `char message[128]` buffer size. Or just pass
+error as NULL but you wont have access to error message.
 
 ---
 

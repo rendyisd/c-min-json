@@ -10,7 +10,7 @@ enum minjson_type {
     MJ_NUMBER,
     MJ_TRUE,
     MJ_FALSE,
-    MJ_NULL,
+    MJ_NULL
 };
 
 struct minjson;
@@ -63,7 +63,7 @@ enum token_type {
     TK_OPEN_SB,
     TK_CLOSE_SB,
     TK_COLON,
-    TK_DELIMITER,
+    TK_DELIMITER
 };
 
 struct minjson_token {
@@ -167,10 +167,12 @@ static void lexer_add_token(enum token_type type,
 
 static int lexer_add_string(struct minjson_lexer *lexer)
 {
+    const char *curr;
+    size_t len = 0;
+
     lexer_advance(lexer, 1); /* One past the opening " */
 
-    const char *curr = lexer->current;
-    size_t len = 0;
+    curr = lexer->current;
     while (*curr != '"') {
         if (*curr == '\n' || *curr == '\0')
             return -1;
@@ -190,13 +192,13 @@ static int lexer_add_string(struct minjson_lexer *lexer)
 enum number_fa_state {
     Q0_START,
     Q1_OPT_MINUS,
-    Q2_INITIAL_ZERO,        // Accept
-    Q3_DIGIT,               // Accept
+    Q2_INITIAL_ZERO,        /* Accept */
+    Q3_DIGIT,               /* Accept */
     Q4_FRAC,
-    Q5_FRAC_DIGIT,          // Accept
+    Q5_FRAC_DIGIT,          /* Accept */
     Q6_EXP,
     Q7_OPT_MINUS_PLUS,
-    Q8_EXP_DIGIT,           // Accept
+    Q8_EXP_DIGIT            /* Accept */
 };
 static int lexer_add_number(struct minjson_lexer *lexer)
 {
@@ -280,14 +282,16 @@ static int lexer_match_literal(struct minjson_lexer *lexer,
 {
     /* No way to sanity check the type and the matched literal
      * Just dont use this for stupid thing, I guess.*/
+    char char_after_literal;
+
     ASSERT(strlen(literal) == len);
 
-    const char char_after_literal = lexer->current[len];
     if (strncmp(lexer->current, literal, len) != 0)
         return -1;
 
     /* This is for catching lexer error early on, for cases like
      * truenull, truefalse, and the like*/
+    char_after_literal = lexer->current[len];
     if (!is_valid_literal_terminator(char_after_literal))
         return -1;
 
@@ -511,6 +515,7 @@ struct minjson_object *minjson_parse_object(struct minjson_token **token,
                                             struct arena_allocator *aa,
                                             struct minjson_error *error)
 {
+    struct minjson_token *current = *token;
     struct minjson_object *object = \
         arena_allocator_alloc(aa,
                               DEFAULT_ALIGNMENT,
@@ -521,23 +526,22 @@ struct minjson_object *minjson_parse_object(struct minjson_token **token,
     object->tail =  NULL;
     object->len = 0;
 
-    /* string -> colon -> value, if delimiter repeat cycle, else expect '}' */
-    struct minjson_token *current = *token;
-
     if (current->next && current->next->type == TK_CLOSE_CB) {
         current = current->next;
         *token = current;
         return object;
     }
 
+    /* string -> colon -> value, if delimiter repeat cycle, else expect '}' */
     while (current && current->type != TK_CLOSE_CB) {
-        /* KEY */
+        char *key;
+        struct minjson_value *value;
         current = current->next;
+
+        /* KEY */
         if (!current || current->type != TK_STRING)
             goto fail_expected_string;
-        char *key = arena_allocator_alloc(aa,
-                                          DEFAULT_ALIGNMENT,
-                                          current->len + 1);
+        key = arena_allocator_alloc(aa, DEFAULT_ALIGNMENT, current->len + 1);
         memcpy(key, current->lexeme, current->len);
         key[current->len] = '\0';
 
@@ -550,7 +554,7 @@ struct minjson_object *minjson_parse_object(struct minjson_token **token,
         current = current->next;
         if(!current)
             goto fail_expected_value;
-        struct minjson_value *value = minjson_parse_value(&current, aa, error);
+        value = minjson_parse_value(&current, aa, error);
         if (!value)
             return NULL;
 
@@ -635,6 +639,7 @@ struct minjson_array *minjson_parse_array(struct minjson_token **token,
                                           struct arena_allocator *aa,
                                           struct minjson_error *error)
 {
+    struct minjson_token *current = *token;
     struct minjson_array *array = \
         arena_allocator_alloc(aa,
                               DEFAULT_ALIGNMENT,
@@ -646,8 +651,6 @@ struct minjson_array *minjson_parse_array(struct minjson_token **token,
     array->tail = NULL;
     array->len = 0;
 
-    struct minjson_token *current = *token;
-
     if (current->next && current->next->type == TK_CLOSE_SB) {
         current = current->next;
         *token = current;
@@ -655,11 +658,12 @@ struct minjson_array *minjson_parse_array(struct minjson_token **token,
     }
 
     while (current && current->type != TK_CLOSE_SB) {
+        struct minjson_value *value;
         /* VALUE */
         current = current->next;
         if(!current)
             goto fail_expected_value;
-        struct minjson_value *value = minjson_parse_value(&current, aa, error);
+        value = minjson_parse_value(&current, aa, error);
         if (!value)
             return NULL;
 
@@ -815,6 +819,7 @@ struct minjson *minjson_parse(struct arena_allocator *doc_aa,
 {
     struct minjson *doc = NULL;
     struct minjson_lexer *lexer = NULL;
+    struct minjson_token *current = NULL;
     /* If doc_aa belongs to caller, dont free on error */
     unsigned char free_doc_aa = 0;
 
@@ -837,7 +842,7 @@ struct minjson *minjson_parse(struct arena_allocator *doc_aa,
         goto fail;
 
     /* Parsing here */
-    struct minjson_token *current = lexer->tk_head;
+    current = lexer->tk_head;
     doc->root = minjson_parse_value(&current, doc_aa, error);
     if (!doc->root)
         goto fail;
@@ -851,23 +856,23 @@ struct minjson *minjson_parse(struct arena_allocator *doc_aa,
     return doc;
 
 fail_allocator:
+    minjson_error_set(error, MJ_ERR_ALLOCATOR, "memory allocator failed", 0, 0);
     if (free_doc_aa)
         arena_allocator_destroy(doc_aa);
     if (lexer)
         arena_allocator_destroy(lexer->aallocator);
-    minjson_error_set(error, MJ_ERR_ALLOCATOR, "memory allocator failed", 0, 0);
     return NULL;
 
 fail_unexpected_token:
-    if (free_doc_aa)
-        arena_allocator_destroy(doc_aa);
-    if (lexer)
-        arena_allocator_destroy(lexer->aallocator);
     minjson_error_set(error,
                       MJ_ERR_TOKEN,
                       "syntax error, unexpected token at line %zu, column %zu",
                       current->line,
                       current->column);
+    if (lexer)
+        arena_allocator_destroy(lexer->aallocator);
+    if (free_doc_aa)
+        arena_allocator_destroy(doc_aa);
     return NULL;
 
 fail:
@@ -881,11 +886,12 @@ fail:
 
 struct minjson_value *minjson_get(struct minjson *doc, const char *key)
 {
+    struct minjson_value *value;
+
     if (!doc || doc->root->type != MJ_OBJECT)
         return NULL;
 
-    struct minjson_value *value = minjson_object_get(doc->root,
-                                                     key);
+    value = minjson_object_get(doc->root, key);
 
     return value;
 }
@@ -893,10 +899,12 @@ struct minjson_value *minjson_get(struct minjson *doc, const char *key)
 struct minjson_value *minjson_object_get(struct minjson_value *value,
                                          const char *key)
 {
+    struct minjson_object_entry *entry;
+
     if (!value || !key || !minjson_value_is_object(value))
         return NULL;
     
-    struct minjson_object_entry *entry = value->value.object->head;
+    entry = value->value.object->head;
     for (; entry; entry = entry->next)
         if (strcmp(key, entry->key) == 0)
             return entry->value;
@@ -907,15 +915,19 @@ struct minjson_value *minjson_object_get(struct minjson_value *value,
 struct minjson_value *minjson_array_get(struct minjson_value *value,
                                         size_t index)
 {
+    struct minjson_array *array;
+    struct minjson_array_entry *entry;
+    size_t i;
+
     if (!value || !minjson_value_is_array(value))
         return NULL;
 
-    struct minjson_array *array = minjson_value_get_array(value);
+    array = minjson_value_get_array(value);
     if (index >= array->len)
         return NULL;
 
-    struct minjson_array_entry *entry = array->head;
-    for (size_t i = 0; entry && i != index; ++i)
+    entry = array->head;
+    for (i = 0; entry && i != index; ++i)
         entry = entry->next;
 
     return entry ? entry->value : NULL;

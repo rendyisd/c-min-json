@@ -75,11 +75,14 @@ static struct arena *arena_allocator_grow(struct arena_allocator* aa,
 
 struct arena_allocator *arena_allocator_new(size_t size)
 {
-    struct arena_allocator *aa = malloc(sizeof(struct arena_allocator));
+    struct arena *a;
+    struct arena_allocator *aa;
+
+    aa = malloc(sizeof(struct arena_allocator));
     if (!aa)
         return NULL;
 
-    struct arena *a = arena_new(size);
+    a = arena_new(size);
     if (!a) {
         free(aa);
         return NULL;
@@ -109,13 +112,15 @@ void arena_allocator_destroy(struct arena_allocator *aa)
 /* ASAN wants an alignment of 8 to work. Why? No idea */
 void *arena_allocator_alloc(struct arena_allocator *aa, size_t alignment, size_t size)
 {
-    /* Alignment must always be a power of 2 */
-    ASSERT((alignment & (alignment - 1)) == 0);
-
     size_t pad = 0;
     size_t total = 0;
     size_t grow_size = 0;
     struct arena *available_ar = aa->head;
+    void *block = NULL;
+
+    /* Alignment must always be a power of 2 */
+    ASSERT((alignment & (alignment - 1)) == 0);
+
     while (available_ar) { 
         pad = -(uintptr_t)available_ar->current & (alignment - 1);
         total = pad + size;
@@ -134,7 +139,7 @@ void *arena_allocator_alloc(struct arena_allocator *aa, size_t alignment, size_t
             return NULL;
     }
 
-    void *block = pad + (char *)available_ar->current;
+    block = pad + (char *)available_ar->current;
     available_ar->current += total;
 
     ASAN_UNPOISON_MEMORY_REGION(block, size);
