@@ -122,9 +122,13 @@ int main(void)
 
 ---
 
-## Things to improve
+## TODO
 - Fuzz testing with AFL++
+- Object duplicate key check
 - Implement string literal escape sequence
+
+## To be Implemented
+These maybe implemented, maybe not:
 - For now its parse only, no building JSON (yet? This fits my use case for now)
 - Error handling is still really funky. Works fine but the diagnosis doesn't
   give the proper error info as its only sees the current token \
