@@ -123,8 +123,6 @@ int main(void)
 ---
 
 ## TODO
-- Fuzz testing with AFL++
-- Object duplicate key check
 - Implement string literal escape sequence
 
 ## To be Implemented
