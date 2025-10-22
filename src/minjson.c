@@ -92,6 +92,11 @@ static int is_onenine(const char c)
     return c >= '1' && c <= '9';
 }
 
+static int is_hex(const char c)
+{
+    return is_digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
 static int is_valid_literal_terminator(const char c)
 {
     return c == '\0' || c == ' ' || c == '\t' || c == '\n' ||
@@ -167,17 +172,36 @@ static void lexer_add_token(enum token_type type,
 
 static int lexer_add_string(struct minjson_lexer *lexer)
 {
-    const char *curr;
+    const char *current;
+    size_t backslash_count = 0;
     size_t len = 0;
 
     lexer_advance(lexer, 1); /* One past the opening " */
 
-    curr = lexer->current;
-    while (*curr != '"') {
-        if (*curr == '\n' || *curr == '\0')
-            return -1;
+    current = lexer->current;
+    while (1) {
+        /**
+         * Please forgive me for this...
+         * \\\" dquote is escaped
+         * \\"  dquote is not escaped. hence we break
+         */
+        if (*current == '"') {
+            if (*(current - 1) == '\\') {
+                if (backslash_count % 2 == 0)
+                    break;
+            } else {
+                break;
+            }
+        }
 
-        ++curr;
+        if (*current == '\n' || *current == '\0')
+            return -1;
+        else if (*current == '\\')
+            ++backslash_count;
+        else
+            backslash_count = 0;
+
+        ++current;
         ++len;
     }
 
@@ -752,6 +776,99 @@ fail_expected_closing_bracket:
                           "syntax error, expected ']' at end of array, line %zu, column %zu",
                           current->line, current->column);
     }
+    return NULL;
+}
+
+static char *minjson_string_convert_escape_sequence(struct minjson_token *token,
+                                                    struct arena_allocator *aa,
+                                                    struct minjson_error *error)
+{
+    const char *lexeme = token->lexeme;
+    const size_t len = token->len;
+
+    char *res = NULL;
+    char *tmp = malloc(len);
+    char replace;
+
+    size_t i = 0;
+    size_t j = 0;
+    size_t new_len = 0;
+
+    if (!tmp)
+        goto fail_allocator;
+
+    while (i < len) {
+        if (lexeme[i] == '\\') {
+            memcpy(tmp + new_len, lexeme + j, i - j);
+            new_len += i - j;
+            j = i + 1;
+            switch (lexeme[j]) {
+                case '"':
+                    replace = '"';
+                    break;
+                case '\\':
+                    replace = '\\';
+                    break;
+                case '/':
+                    replace = '/';
+                    break;
+                case 'b':
+                    replace = '\b';
+                    break;
+                case 'f':
+                    replace = '\f';
+                    break;
+                case 'n':
+                    replace = '\n';
+                    break;
+                case 'r':
+                    replace = '\r';
+                    break;
+                case 't':
+                    replace = '\t';
+                    break;
+                case 'u':
+                    /* TODO: Decode unicode, move j here */
+                    break;
+                default:
+                    goto fail_invalid_escape_sequence;
+            }
+            tmp[new_len] = replace;
+            ++new_len;
+            /* Reset i,j to point to character after escape sequence */
+            ++j;
+            i = j;
+        } else {
+            ++i;
+        }
+    }
+
+    memcpy(tmp + new_len, lexeme + j, i - j);
+    new_len += i - j;
+
+    res = arena_allocator_alloc(aa, DEFAULT_ALIGNMENT, new_len + 1);
+    if (!res) {
+        free(tmp);
+        goto fail_allocator;
+    }
+    memcpy(tmp, res, new_len);
+    res[new_len] = '\0';
+
+    free(tmp);
+
+    return res;
+
+fail_allocator:
+    minjson_error_set(error, MJ_ERR_ALLOCATOR, "memory allocator failed", 0, 0);
+    return NULL;
+
+fail_invalid_escape_sequence:
+    free(tmp);
+    minjson_error_set(error,
+                      MJ_ERR_STRING,
+                      "invalid string escape sequence at line %zu, column %zu",
+                      token->line,
+                      token->column);
     return NULL;
 }
 
