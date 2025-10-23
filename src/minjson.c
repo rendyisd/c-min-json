@@ -92,9 +92,19 @@ static int is_onenine(const char c)
     return c >= '1' && c <= '9';
 }
 
-static int is_hex(const char c)
+#define HS_LB 0xD800
+#define HS_UB 0xDBFF
+#define LS_LB 0xDC00
+#define LS_UB 0xDFFF
+
+static int is_high_surrogate(unsigned int hex)
 {
-    return is_digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+    return hex >= HS_LB && hex <= HS_UB;
+}
+
+static int is_low_surrogate(unsigned int hex)
+{
+    return hex >= LS_LB && hex <= LS_UB;
 }
 
 static int is_valid_literal_terminator(const char c)
@@ -779,9 +789,9 @@ fail_expected_closing_bracket:
     return NULL;
 }
 
-static char *minjson_string_convert_escape_sequence(struct minjson_token *token,
-                                                    struct arena_allocator *aa,
-                                                    struct minjson_error *error)
+static char *minjson_string_decode_escape_sequence(struct minjson_token *token,
+                                                   struct arena_allocator *aa,
+                                                   struct minjson_error *error)
 {
     const char *lexeme = token->lexeme;
     const size_t len = token->len;
@@ -789,6 +799,12 @@ static char *minjson_string_convert_escape_sequence(struct minjson_token *token,
     char *res = NULL;
     char *tmp = malloc(len);
     char replace;
+
+    char *unicode_buff = NULL;
+    char *unicode_buff_endptr = NULL;
+    unsigned int unicode;
+    unsigned int unicode_ls;
+    unsigned long codepoint;
 
     size_t i = 0;
     size_t j = 0;
@@ -801,6 +817,7 @@ static char *minjson_string_convert_escape_sequence(struct minjson_token *token,
         if (lexeme[i] == '\\') {
             memcpy(tmp + new_len, lexeme + j, i - j);
             new_len += i - j;
+
             j = i + 1;
             switch (lexeme[j]) {
                 case '"':
@@ -828,13 +845,66 @@ static char *minjson_string_convert_escape_sequence(struct minjson_token *token,
                     replace = '\t';
                     break;
                 case 'u':
-                    /* TODO: Decode unicode, move j here */
+                    unicode_buff = malloc(4 + 1);
+                    if (!unicode_buff)
+                        goto fail_allocator;
+
+                    if (j + 4 < len) {
+                        memcpy(unicode_buff, &lexeme[j + 1], 4);
+                        unicode_buff[4] = '\0';
+                        j += 4;
+                    } else {
+                        goto fail_invalid_escape_sequence;
+                    }
+
+                    unicode = strtol(unicode_buff, &unicode_buff_endptr, 16);
+                    if (*unicode_buff_endptr != '\0')
+                        goto fail_invalid_escape_sequence;
+
+                    /* If its hs always expect an ls */
+                    if (is_high_surrogate(unicode)) {
+                        ++j;
+                        if (j >= len || lexeme[j] != '\\')
+                            goto fail_ls;
+                        ++j;
+                        if (j >= len || lexeme[j] != 'u')
+                            goto fail_ls;
+
+                        if (j + 4 < len) {
+                            memcpy(unicode_buff, &lexeme[j + 1], 4);
+                            unicode_buff[4] = '\0';
+                            j += 4;
+                        } else {
+                            goto fail_ls;
+                        }
+
+                        unicode_ls = strtol(unicode_buff, &unicode_buff_endptr, 16);
+                        if (*unicode_buff_endptr != '\0')
+                            goto fail_ls;
+
+                        if (!is_low_surrogate(unicode_ls))
+                            goto fail_ls;
+
+                        codepoint = 0x10000 + ((unicode - 0xD800) << 10) + (unicode_ls - 0xDC00);
+                    } else {
+                        codepoint = unicode;
+                    }
+
+                    /* TODO: convert codepoint to utf8 bytes */
+
+                    free(unicode_buff);
+
+                    goto pass_replace;
+
                     break;
                 default:
                     goto fail_invalid_escape_sequence;
             }
             tmp[new_len] = replace;
             ++new_len;
+
+            /* UTF-8 is up to 4 bytes so above logic must be passed */
+        pass_replace:
             /* Reset i,j to point to character after escape sequence */
             ++j;
             i = j;
@@ -867,6 +937,16 @@ fail_invalid_escape_sequence:
     minjson_error_set(error,
                       MJ_ERR_STRING,
                       "invalid string escape sequence at line %zu, column %zu",
+                      token->line,
+                      token->column);
+    return NULL;
+
+fail_ls:
+    free(tmp);
+    free(unicode_buff);
+    minjson_error_set(error,
+                      MJ_ERR_STRING,
+                      "unicode escape sequence missing or invalid lower surrogate at line %zu, column %zu",
                       token->line,
                       token->column);
     return NULL;
