@@ -10,6 +10,7 @@ sequence yet.
 
 ## Features
 - Simple and minimalistic
+- UTF-8 compatible
 - Thread safe
 - No external dependency required
 - Performs lexical analysis, recursive descent parsing, and error handling
@@ -32,7 +33,7 @@ You can use **MinJSON** in two ways:
 For example we have this following JSON:
 ```json
 {
-    "school": "A School",
+    "school": "\uD83D\uDE80 A School \uD83D\uDE0A",
     "students": [
         {
             "id": 67,
@@ -119,16 +120,29 @@ int main(void)
     return 0;
 }
 ```
+Output:
+```
+School name: 🚀 A School 😊
+
+ID: 67
+Name: Adrian
+Score: 78 80 75 
+
+ID: 68
+Name: Jane Doe
+Score: 90 85 92 
+
+ID: 69
+Name: Enrique
+Score: 78 75 80
+```
 
 ---
-
-## TODO
-- Implement string literal escape sequence
 
 ## To be Implemented
 These maybe implemented, maybe not:
 - For now its parse only, no building JSON (yet? This fits my use case for now)
-- Error handling is still really funky. Works fine but the diagnosis doesn't
-  give the proper error info as its only sees the current token \
-  NOTE: Using a look a head of 1 should fix this. But not a priority for now.
-- Give user flexibility to use their own allocator, including the one that requires context
+- Error handling is still really funky. Works fine but at some cases the error
+  info doesn't represent the actual error.
+- Give user flexibility to use their own allocator, including the one that
+  requires context

@@ -92,6 +92,21 @@ static int is_onenine(const char c)
     return c >= '1' && c <= '9';
 }
 
+#define HS_LB 0xD800
+#define HS_UB 0xDBFF
+#define LS_LB 0xDC00
+#define LS_UB 0xDFFF
+
+static int is_high_surrogate(unsigned int hex)
+{
+    return hex >= HS_LB && hex <= HS_UB;
+}
+
+static int is_low_surrogate(unsigned int hex)
+{
+    return hex >= LS_LB && hex <= LS_UB;
+}
+
 static int is_valid_literal_terminator(const char c)
 {
     return c == '\0' || c == ' ' || c == '\t' || c == '\n' ||
@@ -167,17 +182,36 @@ static void lexer_add_token(enum token_type type,
 
 static int lexer_add_string(struct minjson_lexer *lexer)
 {
-    const char *curr;
+    const char *current;
+    size_t backslash_count = 0;
     size_t len = 0;
 
     lexer_advance(lexer, 1); /* One past the opening " */
 
-    curr = lexer->current;
-    while (*curr != '"') {
-        if (*curr == '\n' || *curr == '\0')
-            return -1;
+    current = lexer->current;
+    while (1) {
+        /**
+         * Please forgive me for this...
+         * \\\" dquote is escaped
+         * \\"  dquote is not escaped. hence we break
+         */
+        if (*current == '"') {
+            if (*(current - 1) == '\\') {
+                if (backslash_count % 2 == 0)
+                    break;
+            } else {
+                break;
+            }
+        }
 
-        ++curr;
+        if (*current == '\n' || *current == '\0')
+            return -1;
+        else if (*current == '\\')
+            ++backslash_count;
+        else
+            backslash_count = 0;
+
+        ++current;
         ++len;
     }
 
@@ -299,6 +333,203 @@ static int lexer_match_literal(struct minjson_lexer *lexer,
     lexer_advance(lexer, len - 1);
 
     return 0;
+}
+
+static int minjson_object_is_key_exist(struct minjson_object *object,
+                                       const char *key)
+{
+    struct minjson_object_entry *entry;
+
+    ASSERT(object && key);
+ 
+    entry = object->head;
+    for (; entry; entry = entry->next)
+        if (strcmp(key, entry->key) == 0)
+            return 1;
+
+    return 0;
+
+}
+
+static void codepoint_to_utf8(unsigned long codepoint, 
+                              char utf8[4],
+                              size_t *nbytes)
+{
+    if (codepoint <= 0x7F) {
+        utf8[0] = codepoint & 0x7F;
+        *nbytes = 1;
+    } else if (codepoint <= 0x7FF) {
+        utf8[0] = 0xC0 | ((codepoint >> 6) & 0x1F);
+        utf8[1] = 0x80 | (codepoint & 0x3F);
+        *nbytes = 2;
+    } else if (codepoint <= 0xFFFF) {
+        utf8[0] = 0xE0 | ((codepoint >> 12) & 0x0F);
+        utf8[1] = 0x80 | ((codepoint >> 6) & 0x3F);
+        utf8[2] = 0x80 | (codepoint & 0x3F);
+        *nbytes = 3;
+    } else {
+        utf8[0] = 0xF0 | ((codepoint >> 18) & 0x07);
+        utf8[1] = 0x80 | ((codepoint >> 12) & 0x3F);
+        utf8[2] = 0x80 | ((codepoint >> 6) & 0x3F);
+        utf8[3] = 0x80 | (codepoint & 0x3F);
+        *nbytes = 4;
+    }
+}
+
+static char *minjson_string_decode_escape_sequence(struct minjson_token *token,
+                                                   struct arena_allocator *aa,
+                                                   struct minjson_error *error)
+{
+    const char *lexeme = token->lexeme;
+    const size_t len = token->len;
+
+    char *res = NULL;
+    char tmp[len];
+    char replace;
+
+    char unicode_buff[5];
+    char *unicode_buff_endptr = NULL;
+    unsigned int unicode;
+    unsigned int unicode_ls;
+    unsigned long codepoint;
+    
+    char utf8[4];
+    size_t utf8_nbytes = 0;
+
+    size_t i = 0;
+    size_t j = 0;
+    size_t new_len = 0;
+
+    while (i < len) {
+        if (lexeme[i] == '\\') {
+            memcpy(tmp + new_len, lexeme + j, i - j);
+            new_len += i - j;
+
+            j = i + 1;
+            switch (lexeme[j]) {
+                case '"':
+                    replace = '"';
+                    break;
+                case '\\':
+                    replace = '\\';
+                    break;
+                case '/':
+                    replace = '/';
+                    break;
+                case 'b':
+                    replace = '\b';
+                    break;
+                case 'f':
+                    replace = '\f';
+                    break;
+                case 'n':
+                    replace = '\n';
+                    break;
+                case 'r':
+                    replace = '\r';
+                    break;
+                case 't':
+                    replace = '\t';
+                    break;
+                case 'u':
+                    if (j + 4 < len) {
+                        memcpy(unicode_buff, &lexeme[j + 1], 4);
+                        unicode_buff[4] = '\0';
+                        j += 4;
+                    } else {
+                        goto fail_invalid_escape_sequence;
+                    }
+
+                    unicode = strtol(unicode_buff, &unicode_buff_endptr, 16);
+                    if (*unicode_buff_endptr != '\0')
+                        goto fail_invalid_escape_sequence;
+
+                    /* If its hs always expect an ls */
+                    if (is_high_surrogate(unicode)) {
+                        ++j;
+                        if (j >= len || lexeme[j] != '\\')
+                            goto fail_ls;
+                        ++j;
+                        if (j >= len || lexeme[j] != 'u')
+                            goto fail_ls;
+
+                        if (j + 4 < len) {
+                            memcpy(unicode_buff, &lexeme[j + 1], 4);
+                            unicode_buff[4] = '\0';
+                            j += 4;
+                        } else {
+                            goto fail_ls;
+                        }
+
+                        unicode_ls = strtol(unicode_buff, &unicode_buff_endptr, 16);
+                        if (*unicode_buff_endptr != '\0')
+                            goto fail_ls;
+
+                        if (!is_low_surrogate(unicode_ls))
+                            goto fail_ls;
+
+                        codepoint = 0x10000 + ((unicode - HS_LB) << 10) + (unicode_ls - LS_LB);
+                    } else {
+                        codepoint = unicode;
+                    }
+
+                    /* Populate utf8 and nbytes */
+                    ASSERT(sizeof(utf8) == 4);
+                    codepoint_to_utf8(codepoint, utf8, &utf8_nbytes);
+
+                    memcpy(tmp + new_len, utf8, utf8_nbytes);
+                    new_len += utf8_nbytes;
+
+                    goto pass_replace;
+
+                    break;
+                default:
+                    goto fail_invalid_escape_sequence;
+            }
+            tmp[new_len] = replace;
+            ++new_len;
+
+            /* UTF-8 is up to 4 bytes so above logic must be passed */
+        pass_replace:
+            /* Reset i,j to point to character after escape sequence */
+            ++j;
+            i = j;
+        } else {
+            ++i;
+        }
+    }
+
+    memcpy(tmp + new_len, lexeme + j, i - j);
+    new_len += i - j;
+
+    res = arena_allocator_alloc(aa, DEFAULT_ALIGNMENT, new_len + 1);
+    if (!res)
+        goto fail_allocator;
+
+    memcpy(res, tmp, new_len);
+    res[new_len] = '\0';
+
+    return res;
+
+fail_allocator:
+    minjson_error_set(error, MJ_ERR_ALLOCATOR, "memory allocator failed", 0, 0);
+    return NULL;
+
+fail_invalid_escape_sequence:
+    minjson_error_set(error,
+                      MJ_ERR_STRING,
+                      "invalid string escape sequence at line %zu, column %zu",
+                      token->line,
+                      token->column);
+    return NULL;
+
+fail_ls:
+    minjson_error_set(error,
+                      MJ_ERR_STRING,
+                      "unicode escape sequence missing or invalid low surrogate at line %zu, column %zu",
+                      token->line,
+                      token->column);
+    return NULL;
 }
 
 int minjson_lexer_tokenize(struct minjson_lexer *lexer,
@@ -511,22 +742,6 @@ int minjson_object_create_entry(struct minjson_object *object,
     return 0;
 }
 
-static int minjson_object_is_key_exist(struct minjson_object *object,
-                                       const char *key)
-{
-    struct minjson_object_entry *entry;
-
-    ASSERT(object && key);
- 
-    entry = object->head;
-    for (; entry; entry = entry->next)
-        if (strcmp(key, entry->key) == 0)
-            return 1;
-
-    return 0;
-
-}
-
 struct minjson_object *minjson_parse_object(struct minjson_token **token,
                                             struct arena_allocator *aa,
                                             struct minjson_error *error)
@@ -560,9 +775,9 @@ struct minjson_object *minjson_parse_object(struct minjson_token **token,
         if (!lookahead || lookahead->type != TK_STRING)
             goto fail_expected_string;
         current = lookahead;
-        key = arena_allocator_alloc(aa, DEFAULT_ALIGNMENT, current->len + 1);
-        memcpy(key, current->lexeme, current->len);
-        key[current->len] = '\0';
+        key = minjson_string_decode_escape_sequence(current, aa, error);
+        if (!key)
+            return NULL;
 
         if (minjson_object_is_key_exist(object, key))
             goto fail_duplicate_key;
@@ -809,18 +1024,10 @@ struct minjson_value *minjson_parse_value(struct minjson_token **token,
                 val->value.number = strtod(temp, NULL);
                 break;
             case TK_STRING:
-                temp = arena_allocator_alloc(aa,
-                                             DEFAULT_ALIGNMENT,
-                                             current->len + 1);
-                if (!temp)
-                    goto fail_allocator;
-
                 val->type = MJ_STRING;
-
-                memcpy(temp, current->lexeme, current->len);
-                temp[current->len] = '\0';
-
-                val->value.string = temp;
+                val->value.string = minjson_string_decode_escape_sequence(current, aa, error);
+                if (!val->value.string)
+                    return NULL;
                 break;
             default:
                 goto fail_unexpected_token;
