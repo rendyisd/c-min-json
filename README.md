@@ -33,7 +33,7 @@ You can use **MinJSON** in two ways:
 For example we have this following JSON:
 ```json
 {
-    "school": "A School",
+    "school": "\uD83D\uDE80 A School \uD83D\uDE0A",
     "students": [
         {
             "id": 67,
@@ -120,11 +120,24 @@ int main(void)
     return 0;
 }
 ```
+Output:
+```
+School name: 🚀 A School 😊
+
+ID: 67
+Name: Adrian
+Score: 78 80 75 
+
+ID: 68
+Name: Jane Doe
+Score: 90 85 92 
+
+ID: 69
+Name: Enrique
+Score: 78 75 80
+```
 
 ---
-
-## TODO
-- Implement string literal escape sequence
 
 ## To be Implemented
 These maybe implemented, maybe not:
