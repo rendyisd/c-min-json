@@ -1,23 +1,25 @@
 # MinJSON
-A minimalistic JSON parser and accessor library written in and for C.
-
 **MinJSON** provides a small and and self-contained implementation of a simple and
-minimalistic JSON parser. As of now it only allows lexical analysis, parsing, and
-accessing JSON data. Builder is not (yet?) available, also no string literal escape
-sequence yet.
+minimalistic JSON parser and accessor for C.
 
 ---
 
 ## Features
 - Simple and minimalistic
-- UTF-8 compatible
 - Thread safe
 - No external dependency required
-- Performs lexical analysis, recursive descent parsing, and error handling
-- ANSI C compliance EXCEPT for the use of `snprintf` in `minjson_error_set`.
+- Uses arena allocator
+- Performs lexical analysis, recursive descent parsing, and provides error message
+- UTF-8/Unicode compliant
+- ANSI C compliant EXCEPT for the use of `snprintf` in `minjson_error_set`
 > **_NOTE:_** If you really need to compile this with C89 standard use `sprintf`
 (not reccomended) and increase `char message[128]` buffer size. Or just pass
 error as NULL but you wont have access to error message.
+
+---
+
+## Documentation
+The documentation for each public facing API is in `c-minjson.h`
 
 ---
 
