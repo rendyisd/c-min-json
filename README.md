@@ -18,16 +18,17 @@ error as NULL but you wont have access to error message.
 
 ---
 
-## Documentation
-The documentation for each public facing API is in `c-minjson.h`
-
----
 
 ## Building
 You can use **MinJSON** in two ways:
 - Copying the sources (except test.c) and headers into your project and compile them together with your code
 - Run `make shared` or `make static` and link to your binary accordingly
 > **_NOTE:_** Run `make help` to see all avaiable make subcommands.
+
+---
+
+## Documentation
+The documentation for each public facing API is in the header files.
 
 ---
 
